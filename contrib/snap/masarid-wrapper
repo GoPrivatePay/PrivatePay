@@ -1,0 +1,8 @@
+#!/bin/sh
+
+if [ ! -d "$SNAP_USER_DATA/etc" ]; then
+  mkdir $SNAP_USER_DATA/etc/
+  cp -R $SNAP/etc/privatepayd.conf $SNAP_USER_DATA/etc/privatepayd.conf
+fi
+
+exec "$SNAP/bin/privatepayd" "$@"
