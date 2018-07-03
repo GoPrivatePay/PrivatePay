@@ -436,5 +436,7 @@ We would like to thank Masari for the fundamental code that PrivatePay's core ru
 Donations -
 
 Masari: 5nYWvcvNThsLaMmrsfpRLBRou1RuGtLabUwYH7v6b88bem2J4aUwsoF33FbJuqMDgQjpDRTSpLCZu3d XpqXicE2uSWS4LUP (viewkey: 99e21e00cce073c126e9aed800c9e2e82518534b3924b035a29436ff4f75bc0c)
+
 Monero: 4A57eA3so6bEE8FUcaN1KtMXD3sxjjbvcKD3MF1pUgRi5PNHTpB7sYN2DmJv3EXxtZCWeG88tsVLzdf ZJcmUFm52SbrfJWr (viewkey: c7a7c141581ac4436ba8bfb81dd67234720c565c696ef154a25c7e7314ce4b08)
+
 Bitcoin: 1J1he4qtTuNpCxyEBozkeKfDpoeYxfE3rj
