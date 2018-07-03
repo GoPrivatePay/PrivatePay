@@ -428,3 +428,13 @@ The output of `mdb_stat -ea <path to blockchain dir>` will indicate inconsistenc
 The output of `mdb_dump -s blocks <path to blockchain dir>` and `mdb_dump -s block_info <path to blockchain dir>` is useful for indicating whether blocks and block_info contain the same keys.
 
 These records are dumped as hex data, where the first line is the key and the second line is the data.
+
+### Masari Project
+
+We would like to thank Masari for the fundamental code that PrivatePay's core runs on, They have achieved great things and looking at their projects GitHub we saw some great changes that they have implemented. Their community as a whole is strong and each and every member puts time into helping the development.
+
+Donations -
+
+Masari: 5nYWvcvNThsLaMmrsfpRLBRou1RuGtLabUwYH7v6b88bem2J4aUwsoF33FbJuqMDgQjpDRTSpLCZu3d XpqXicE2uSWS4LUP (viewkey: 99e21e00cce073c126e9aed800c9e2e82518534b3924b035a29436ff4f75bc0c)
+Monero: 4A57eA3so6bEE8FUcaN1KtMXD3sxjjbvcKD3MF1pUgRi5PNHTpB7sYN2DmJv3EXxtZCWeG88tsVLzdf ZJcmUFm52SbrfJWr (viewkey: c7a7c141581ac4436ba8bfb81dd67234720c565c696ef154a25c7e7314ce4b08)
+Bitcoin: 1J1he4qtTuNpCxyEBozkeKfDpoeYxfE3rj
