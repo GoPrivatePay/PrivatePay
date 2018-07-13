@@ -12,7 +12,7 @@ Portions Copyright (c) 2012-2013 The Cryptonote developers.
 ## Development resources
 
 - Web: [goprivatepay.com](https://goprivatepay.com)
-- GitHub: [https://github.com/privatepay/privatepay](https://github.com/privatepay/privatepay)
+- GitHub: [https://github.com/goprivatepay/goprivatepay](https://github.com/goprivatepay/goprivatepay)
 
 ## Vulnerability response
 
@@ -114,13 +114,9 @@ build the library binary manually. This can be done with the following command `
 
 ### Cloning the repository
 
-Clone recursively to pull-in needed submodule(s):
+Clone the github repo
 
-`$ git clone --recursive https://github.com/privatepay/privatepay`
-
-If you already have a repo cloned, initialize and update:
-
-`$ cd privatepay && git submodule init && git submodule update`
+`$ git clone https://github.com/GoPrivatePay/PrivatePay.git`
 
 ### Build instructions
 
