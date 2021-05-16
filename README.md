@@ -1,4 +1,6 @@
-# PrivatePay
+# PrivatePay is now taken over by the community. No premine and additional information coming soon. 
+
+Copyright (c) 2021  Private Pay
 
 Copyright (c) 2018  Private Pay
 
