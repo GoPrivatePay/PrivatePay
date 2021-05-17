@@ -325,7 +325,7 @@ HardFork::State HardFork::get_state(time_t t) const
 
   time_t t_last_fork = heights.back().time;
   if (t >= t_last_fork + forked_time)
-    return LikelyForked;
+    return Ready;
   if (t >= t_last_fork + update_time)
     return UpdateNeeded;
   return Ready;
