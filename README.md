@@ -1,4 +1,4 @@
-# PrivatePay is now taken over by the community. Please note, this is not the official Github for PrivatePay. 
+# PrivatePay is now taken over by new developers. Please note, this is now the official Github for PrivatePay. 
 This repo was updated with Tradeogre. 
 
 Copyright (c) 2021  Private Pay
