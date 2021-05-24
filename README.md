@@ -1,13 +1,14 @@
 # PrivatePay is now taken over by new developers. Please note, this is now the official Github for PrivatePay. 
 This repo was updated with Tradeogre. 
 
-Copyright (c) 2021  Private Pay
+Copyright (c) 2021  Private Pay - Reborn
 
 Copyright (c) 2018  Private Pay
 
-Copyright (c) 2017-2018 The Masari Project.
+Copyright (c) 2014-2021 The Monero Project.
 
-Copyright (c) 2014-2018 The Monero Project.
+Copyright (c) 2017-2021 The Masari Project.
+
 
 
 Portions Copyright (c) 2012-2013 The Cryptonote developers.
@@ -67,7 +68,7 @@ Dates are provided in the format YYYY-MM-DD.
 
 | Fork Date         | Consensus version | Minimum PrivatePay Version | Recommended PrivatePay Version | Details                                                             |
 | ----------------- | ----------------- | ---------------------- | -------------------------- | --------------------------------------------------------------------|
-|                   |                   |                        |                            |                            											|
+|       TBA         |         v1        |         v1.0.0         |           v1.0.0           | Merging upstream updates from Masari and Monero and Algo change     |
 |                   |                   |                        |                            | 											                        |
 |                   |                   |                        | 			                  | 							                                        |
 |                   |                   |                        | 			                  | 																	|
