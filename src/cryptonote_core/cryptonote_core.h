@@ -1,4 +1,6 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -640,6 +642,13 @@ namespace cryptonote
       * @param target_blockchain_height the target height
       */
      uint64_t get_target_blockchain_height() const;
+
+     /**
+      * @brief returns the newest hardfork version known to the blockchain
+      *
+      * @return the version
+      */
+     uint8_t get_ideal_hard_fork_version() const;
 
      /**
       * @brief returns the newest hardfork version known to the blockchain

@@ -1,5 +1,6 @@
-// Copyright (c) 2017-2018, The Masari Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 // 
 // All rights reserved.
 // 
@@ -1177,8 +1178,8 @@ bool t_rpc_command_executor::get_limit()
     }
   }
 
-  tools::msg_writer() << "limit-down is " << res.limit_down/1024 << " kB/s";
-  tools::msg_writer() << "limit-up is " << res.limit_up/1024 << " kB/s";
+  tools::msg_writer() << "limit-down is " << res.limit_down << " kB/s";
+  tools::msg_writer() << "limit-up is " << res.limit_up << " kB/s";
   return true;
 }
 
@@ -1208,8 +1209,8 @@ bool t_rpc_command_executor::set_limit(int64_t limit_down, int64_t limit_up)
     }
   }
 
-  tools::msg_writer() << "Set limit-down to " << res.limit_down/1024 << " kB/s";
-  tools::msg_writer() << "Set limit-up to " << res.limit_up/1024 << " kB/s";
+  tools::msg_writer() << "Set limit-down to " << res.limit_down << " kB/s";
+  tools::msg_writer() << "Set limit-up to " << res.limit_up << " kB/s";
   return true;
 }
 
@@ -1236,7 +1237,7 @@ bool t_rpc_command_executor::get_limit_up()
     }
   }
 
-  tools::msg_writer() << "limit-up is " << res.limit_up/1024 << " kB/s";
+  tools::msg_writer() << "limit-up is " << res.limit_up << " kB/s";
   return true;
 }
 
@@ -1263,7 +1264,7 @@ bool t_rpc_command_executor::get_limit_down()
     }
   }
 
-  tools::msg_writer() << "limit-down is " << res.limit_down/1024 << " kB/s";
+  tools::msg_writer() << "limit-down is " << res.limit_down << " kB/s";
   return true;
 }
 
