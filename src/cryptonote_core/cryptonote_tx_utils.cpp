@@ -30,6 +30,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include <unordered_set>
+#include <random>
 #include "include_base_utils.h"
 #include "string_tools.h"
 using namespace epee;
@@ -292,7 +293,7 @@ namespace cryptonote
 
     // "Shuffle" outs
     std::vector<tx_destination_entry> shuffled_dsts(destinations);
-    std::random_shuffle(shuffled_dsts.begin(), shuffled_dsts.end(), [](unsigned int i) { return crypto::rand<unsigned int>() % i; });
+    std::shuffle(shuffled_dsts.begin(), shuffled_dsts.end(), std::default_random_engine(crypto::rand<unsigned int>()));
 
     // sort ins by their key image
     std::vector<size_t> ins_order(sources.size());
@@ -339,7 +340,7 @@ namespace cryptonote
     uint64_t summary_outs_money = 0;
     //fill outputs
     size_t output_index = 0;
-    for(const tx_destination_entry& dst_entr: destinations)
+    for(const tx_destination_entry& dst_entr: shuffled_dsts)
     {
       crypto::key_derivation derivation;
       crypto::public_key out_eph_public_key;
