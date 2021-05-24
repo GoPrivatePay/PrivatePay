@@ -1,0 +1,3 @@
+[submodule "external/miniupnpc"]
+	path = external/miniupnpc
+	url = https://github.com/PrivatePay-Reborn/miniupnp.git
