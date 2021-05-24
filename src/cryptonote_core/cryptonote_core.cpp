@@ -1401,11 +1401,6 @@ namespace cryptonote
     return get_blockchain_storage().get_ideal_hard_fork_version();
   }
   //-----------------------------------------------------------------------------------------------
-  uint8_t core::get_ideal_hard_fork_version() const
-  {
-    return get_blockchain_storage().get_ideal_hard_fork_version();
-  }
-  //-----------------------------------------------------------------------------------------------
   uint8_t core::get_ideal_hard_fork_version(uint64_t height) const
   {
     return get_blockchain_storage().get_ideal_hard_fork_version(height);
