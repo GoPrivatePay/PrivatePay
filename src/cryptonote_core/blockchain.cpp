@@ -1,5 +1,6 @@
-// Copyright (c) 2017-2018, The Masari Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -96,7 +97,8 @@ static const struct {
   { 4, 7, 0, 1513136914 },
   { 5, 9, 0, 1525150523},
   { 6, 11, 0, 1525504168},
-  { 7, 13, 0, 1529361270}
+  { 7, 13, 0, 1529361270},
+  { 8, 1200000, 0, 1629816222} // Temporary Hard Fork Info
 };
 
 static const struct {
@@ -111,7 +113,8 @@ static const struct {
   { 4, 7, 0, 1512627130 },
   { 5, 9, 0, 1524112219 },
   { 6, 11, 0, 1525277953 },
-  { 7, 13, 0, 1527868842 }
+  { 7, 13, 0, 1527868842 },
+  { 8, 15, 0, 1629816222}
 };
 
 static const struct {
@@ -122,10 +125,14 @@ static const struct {
 } stagenet_hard_forks[] = {
   // version 1 from the start of the blockchain
   { 1, 1, 0, 1504374656 },
-  // versions 2-4 in rapid succession from March 13th, 2018
+  // versions 2-7 in rapid succession from March 13th, 2018
   { 2, 2, 0, 1521000000 },
   { 3, 3, 0, 1521120000 },
   { 4, 4, 0, 1521240000 },
+  { 5, 9, 0, 1524112219 },
+  { 6, 11, 0, 1525277953 },
+  { 7, 13, 0, 1527868842 },
+  { 8, 15, 0, 1629816222}
 };
 
 //------------------------------------------------------------------
