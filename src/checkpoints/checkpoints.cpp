@@ -1,5 +1,6 @@
-// Copyright (c) 2017-2018, The Masari Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -218,9 +219,9 @@ namespace cryptonote
     std::vector<std::string> records;
 
     // All four MoneroPulse domains have DNSSEC on and valid
-    static const std::vector<std::string> dns_urls = {	  "ck1.goprivatepay.com"
-														, "ck2.goprivatepay.com"
-														, "ck3.goprivatepay.com"
+    static const std::vector<std::string> dns_urls = {	  "ck1.privatepay.online"
+														, "ck2.privatepay.online"
+														, "ck3.privatepay.online"
 														};
 
     static const std::vector<std::string> testnet_dns_urls = {};
