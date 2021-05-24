@@ -1,5 +1,6 @@
-// Copyright (c) 2017-2018, The Masari Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -389,8 +390,12 @@ namespace nodetool
     }
     else
     {
-      full_addrs.insert("192.99.16.198:27444");
-      full_addrs.insert("102.165.47.137:27444");
+      full_addrs.insert("88.106.235.163:27444");
+      full_addrs.insert("136.244.65.16:27444");
+	  full_addrs.insert("192.248.155.66:27444");
+	  full_addrs.insert("80.240.29.76:27444");
+	  
+	  
 
     }
     return full_addrs;
