@@ -1,6 +1,6 @@
-[submodule "external/miniupnpc"]
-	path = external/miniupnpc
-	url = https://github.com/PrivatePay-Reborn/miniupnp.git
 [submodule "external/unbound"]
 	path = external/unbound
 	url = https://github.com/PrivatePay-Reborn/unbound.git
+[submodule "external/miniupnp"]
+	path = external/miniupnp
+	url = https://github.com/PrivatePay-Reborn/miniupnp
