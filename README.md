@@ -15,7 +15,7 @@ Portions Copyright (c) 2012-2013 The Cryptonote developers.
 
 ## Development resources
 
-- Web: Coming soon
+- Web: http://privatepay.online
 - GitHub: [https://github.com/DaybyDayDev/PrivatePay](https://github.com/DaybyDayDev/PrivatePay)
 
 ## Vulnerability response
