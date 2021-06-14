@@ -1,4 +1,6 @@
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -128,9 +130,9 @@ namespace nodetool
   private:
     // TODO-TK: need seed list through DNS lookups.
     const std::vector<std::string> m_seed_nodes_list = {
-		"seed1.goprivatepay.com"
-		,"seed2.goprivatepay.com"
-		,"seed3.goprivatepay.com"
+		"seed1.privatepay.online"
+		,"seed2.privatepay.online"
+		,"seed3.privatepay.online"
 	};
 
     bool islimitup=false;
@@ -334,8 +336,8 @@ namespace nodetool
     cryptonote::network_type m_nettype;
   };
 
-    const int64_t default_limit_up = 2048;
-    const int64_t default_limit_down = 8192;
+    const int64_t default_limit_up = 2048;    // kB/s
+    const int64_t default_limit_down = 8192;  // kB/s
     extern const command_line::arg_descriptor<std::string> arg_p2p_bind_ip;
     extern const command_line::arg_descriptor<std::string, false, true, 2> arg_p2p_bind_port;
     extern const command_line::arg_descriptor<uint32_t>    arg_p2p_external_port;

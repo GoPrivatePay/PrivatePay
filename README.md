@@ -1,18 +1,22 @@
-# PrivatePay
+# PrivatePay is now taken over by new developers. Please note, this is now the official Github for PrivatePay. 
+This repo was updated with Tradeogre. 
+
+Copyright (c) 2021  Private Pay - Reborn
 
 Copyright (c) 2018  Private Pay
 
-Copyright (c) 2017-2018 The Masari Project.
+Copyright (c) 2014-2021 The Monero Project.
 
-Copyright (c) 2014-2018 The Monero Project.
+Copyright (c) 2017-2021 The Masari Project.
+
 
 
 Portions Copyright (c) 2012-2013 The Cryptonote developers.
 
 ## Development resources
 
-- Web: [goprivatepay.com](https://goprivatepay.com)
-- GitHub: [https://github.com/goprivatepay/goprivatepay](https://github.com/goprivatepay/goprivatepay)
+- Web: http://privatepay.online
+- GitHub: [https://github.com/DaybyDayDev/PrivatePay](https://github.com/DaybyDayDev/PrivatePay)
 
 ## Vulnerability response
 
@@ -64,7 +68,7 @@ Dates are provided in the format YYYY-MM-DD.
 
 | Fork Date         | Consensus version | Minimum PrivatePay Version | Recommended PrivatePay Version | Details                                                             |
 | ----------------- | ----------------- | ---------------------- | -------------------------- | --------------------------------------------------------------------|
-|                   |                   |                        |                            |                            											|
+|       TBA         |         v1        |         v1.0.0         |           v1.0.0           | Merging upstream updates from Masari and Monero and Algo change     |
 |                   |                   |                        |                            | 											                        |
 |                   |                   |                        | 			                  | 							                                        |
 |                   |                   |                        | 			                  | 																	|
@@ -158,6 +162,8 @@ invokes cmake commands as needed.
 * **Optional**: to build statically-linked binaries:
 
          make release-static
+
+Dependencies need to be built with -fPIC. Static libraries usually aren't, so you may have to build them yourself with -fPIC. Refer to their documentation for how to build them.
 
 * **Optional**: build documentation in `doc/html` (omit `HAVE_DOT=YES` if `graphviz` is not installed):
 
@@ -281,7 +287,7 @@ Build privatepay: `env DEVELOPER_LOCAL_TOOLS=1 BOOST_ROOT=/usr/local make releas
         # Get binaries
         docker cp privatepay-android:/opt/android/privatepay/build/release/bin .
 
-### Building portable statically linked binaries
+### Building portable statically linked binaries (Cross Compiling)
 
 By default, in either dynamically or statically linked builds, binaries target the specific host processor on which the build happens and are not portable to other processors. Portable binaries can be built using the following targets:
 
@@ -292,6 +298,30 @@ By default, in either dynamically or statically linked builds, binaries target t
 * ```make release-static-linux-armv6``` builds binaries on Linux portable across POSIX systems on armv6 processors
 * ```make release-static-win64``` builds binaries on 64-bit Windows portable across 64-bit Windows systems
 * ```make release-static-win32``` builds binaries on 64-bit or 32-bit Windows portable across 32-bit Windows systems
+
+* Docker
+        # Build using all available cores
+        docker build -t privatepay .
+        # or build using a specific number of cores (reduce RAM requirement)
+        docker build --build-arg NPROC=1 -t privatepay .
+        # either run in foreground
+        docker run -it -v /privatepay/chain:/root/.privatepay -v /privatepay/wallet:/wallet -p 18080:18080 privatepay
+        # or in background
+        docker run -it -d -v /privatepay/chain:/root/.privatepay -v /privatepay/wallet:/wallet -p 18080:18080 privatepay
+* The build needs 3 GB space.
+* Wait one  hour or more
+Packaging for your favorite distribution would be a welcome contribution!
+You can also cross-compile binaries on linux for windows and macos with the depends system. Go to contrib/depends and type:
+* ```make HOST=x86_64-linux-gnu``` for 64-bit linux binaries.
+* ```make HOST=x86_64-w64-mingw32``` for 64-bit windows binaries. Requires: python3 nsis g++-mingw-w64-x86-64 wine1.6 bc
+* ```make HOST=x86_64-apple-darwin11``` for darwin binaries. Requires: cmake imagemagick libcap-dev librsvg2-bin libz-dev libbz2-dev libtiff-tools python-dev
+* ```make HOST=i686-linux-gnu``` for 32-bit linux binaries. Requires: g++-multilib bc
+* ```make HOST=i686-w64-mingw32``` for 32-bit windows binaries. Requires: python3 nsis g++-mingw-w64-i686
+* ```make HOST=arm-linux-gnueabihf``` for armv6 binaries. Requires: g++-arm-linux-gnueabihf
+The required packages are the names for each toolchain on apt. Depending on your distro, they may have different names.
+Then go back to the source dir and type for example for windows 64bit: 
+* ```cmake -DCMAKE_TOOLCHAIN_FILE=`pwd`/contrib/depends/x86_64-w64-mingw32```
+Using depends might also be easier to compile privatepay on windows than using msys. Activate windows subsystem for linux (for example ubuntu) install the apt build-essentials and follow the depends steps as depicted above.
 
 ## Running privatepayd
 

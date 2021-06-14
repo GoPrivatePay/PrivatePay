@@ -1,5 +1,6 @@
-// Copyright (c) 2018, The Masari Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -525,7 +526,7 @@ void slow_hash_free_state(void)
     else
     {
 #if defined(_MSC_VER) || defined(__MINGW32__)
-        VirtualFree(hp_state, MEMORY, MEM_RELEASE);
+        VirtualFree(hp_state, 0, MEM_RELEASE);
 #else
         munmap(hp_state, MEMORY);
 #endif

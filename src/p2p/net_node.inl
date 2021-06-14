@@ -1,5 +1,6 @@
-// Copyright (c) 2017-2018, The Masari Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -50,16 +51,9 @@
 #include "storages/levin_abstract_invoke2.h"
 #include "cryptonote_core/cryptonote_core.h"
 
-// We have to look for miniupnpc headers in different places, dependent on if its compiled or external
-#ifdef UPNP_STATIC
-  #include <miniupnpc/miniupnpc.h>
-  #include <miniupnpc/upnpcommands.h>
-  #include <miniupnpc/upnperrors.h>
-#else
-  #include "miniupnpc.h"
-  #include "upnpcommands.h"
-  #include "upnperrors.h"
-#endif
+#include <miniupnp/miniupnpc/miniupnpc.h>
+#include <miniupnp/miniupnpc/upnpcommands.h>
+#include <miniupnp/miniupnpc/upnperrors.h>
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "net.p2p"
@@ -379,9 +373,8 @@ namespace nodetool
     std::set<std::string> full_addrs;
     if (nettype == cryptonote::TESTNET)
     {
-      full_addrs.insert("5.9.80.145:28444");
-      full_addrs.insert("5.9.80.139:28444");
-      full_addrs.insert("51.38.92.6:28444");
+      full_addrs.insert("192.99.16.198:28444");
+      full_addrs.insert("102.165.47.137:28444");
 
     }
     else if (nettype == cryptonote::STAGENET)
@@ -390,9 +383,12 @@ namespace nodetool
     }
     else
     {
-      full_addrs.insert("5.9.80.145:27444");
-      full_addrs.insert("5.9.80.139:27444");
-      full_addrs.insert("51.38.92.6:27444");
+      full_addrs.insert("88.106.235.163:27444");
+      full_addrs.insert("136.244.65.16:27444");
+	  full_addrs.insert("192.248.155.66:27444");
+	  full_addrs.insert("80.240.29.76:27444");
+	  
+	  
 
     }
     return full_addrs;
