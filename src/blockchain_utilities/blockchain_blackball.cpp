@@ -1,5 +1,6 @@
-// Copyright (c) 2017-2018, The Masari Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -253,7 +254,8 @@ int main(int argc, char* argv[])
     return 1;
   }
   std::vector<std::unique_ptr<Blockchain>> core_storage(inputs.size());
-  tx_memory_pool m_mempool(*(Blockchain*)NULL);
+  Blockchain *blockchain = NULL;
+  tx_memory_pool m_mempool(*blockchain);
   for (size_t n = 0; n < inputs.size(); ++n)
   {
     core_storage[n].reset(new Blockchain(m_mempool));

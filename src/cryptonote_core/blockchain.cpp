@@ -1,5 +1,6 @@
-// Copyright (c) 2017-2018, The Masari Project
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 //
 // All rights reserved.
 //
@@ -96,7 +97,8 @@ static const struct {
   { 4, 7, 0, 1513136914 },
   { 5, 9, 0, 1525150523},
   { 6, 11, 0, 1525504168},
-  { 7, 13, 0, 1529361270}
+  { 7, 13, 0, 1529361270},
+  { 8, 1200000, 0, 1629816222} // Temporary Hard Fork Info
 };
 
 static const struct {
@@ -111,7 +113,8 @@ static const struct {
   { 4, 7, 0, 1512627130 },
   { 5, 9, 0, 1524112219 },
   { 6, 11, 0, 1525277953 },
-  { 7, 13, 0, 1527868842 }
+  { 7, 13, 0, 1527868842 },
+  { 8, 15, 0, 1629816222}
 };
 
 static const struct {
@@ -122,10 +125,14 @@ static const struct {
 } stagenet_hard_forks[] = {
   // version 1 from the start of the blockchain
   { 1, 1, 0, 1504374656 },
-  // versions 2-4 in rapid succession from March 13th, 2018
+  // versions 2-7 in rapid succession from March 13th, 2018
   { 2, 2, 0, 1521000000 },
   { 3, 3, 0, 1521120000 },
   { 4, 4, 0, 1521240000 },
+  { 5, 9, 0, 1524112219 },
+  { 6, 11, 0, 1525277953 },
+  { 7, 13, 0, 1527868842 },
+  { 8, 15, 0, 1629816222}
 };
 
 //------------------------------------------------------------------
@@ -405,6 +412,53 @@ bool Blockchain::init(BlockchainDB* db, const network_type nettype, bool offline
   MINFO("Blockchain initialized. last block: " << m_db->height() - 1 << ", " << epee::misc_utils::get_time_interval_string(timestamp_diff) << " time ago, current difficulty: " << get_difficulty_for_next_block());
   m_db->block_txn_stop();
 
+  uint64_t num_popped_blocks = 0;
+  while (true)
+  {
+    const uint64_t top_height = m_db->height() - 1;
+    const crypto::hash top_id = m_db->top_block_hash();
+    const block top_block = m_db->get_top_block();
+    const uint8_t ideal_hf_version = get_ideal_hard_fork_version(top_height);
+    if (ideal_hf_version <= 1 || ideal_hf_version == top_block.major_version)
+    {
+      if (num_popped_blocks > 0)
+        MGINFO("Initial popping done, top block: " << top_id << ", top height: " << top_height << ", block version: " << (uint64_t)top_block.major_version);
+      break;
+    }
+    else
+    {
+      if (num_popped_blocks == 0)
+        MGINFO("Current top block " << top_id << " at height " << top_height << " has version " << (uint64_t)top_block.major_version << " which disagrees with the ideal version " << (uint64_t)ideal_hf_version);
+      if (num_popped_blocks % 100 == 0)
+        MGINFO("Popping blocks... " << top_height);
+      ++num_popped_blocks;
+      block popped_block;
+      std::vector<transaction> popped_txs;
+      try
+      {
+        m_db->pop_block(popped_block, popped_txs);
+      }
+      // anything that could cause this to throw is likely catastrophic,
+      // so we re-throw
+      catch (const std::exception& e)
+      {
+        MERROR("Error popping block from blockchain: " << e.what());
+        throw;
+      }
+      catch (...)
+      {
+        MERROR("Error popping block from blockchain, throwing!");
+        throw;
+      }
+    }
+  }
+  if (num_popped_blocks > 0)
+  {
+    m_timestamps_and_difficulties_height = 0;
+    m_hardfork->reorganize_from_chain_height(get_current_blockchain_height());
+    m_tx_pool.on_blockchain_dec(m_db->height()-1, get_tail_id());
+  }
+  
   update_next_cumulative_size_limit();
   return true;
 }
@@ -548,6 +602,12 @@ block Blockchain::pop_block_from_blockchain()
       }
     }
   }
+  
+  m_blocks_longhash_table.clear();
+  m_scan_table.clear();
+  m_blocks_txs_check.clear();
+  m_check_txin_table.clear();
+
   update_next_cumulative_size_limit();
   m_tx_pool.on_blockchain_dec(m_db->height()-1, get_tail_id());
 
@@ -1853,7 +1913,7 @@ void Blockchain::get_output_key_mask_unlocked(const uint64_t& amount, const uint
   unlocked = is_tx_spendtime_unlocked(m_db->get_tx_unlock_time(toi.first));
 }
 //------------------------------------------------------------------
-bool Blockchain::get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) const
+bool Blockchain::get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) const
 {
   start_height = 0;
   base = 0;
@@ -1862,22 +1922,7 @@ bool Blockchain::get_output_distribution(uint64_t amount, uint64_t from_height, 
   if (from_height > start_height)
     start_height = from_height;
 
-  distribution.clear();
-  uint64_t db_height = m_db->height();
-  if (start_height >= db_height)
-    return false;
-  distribution.resize(db_height - start_height, 0);
-  bool r = for_all_outputs(amount, [&](uint64_t height) {
-    CHECK_AND_ASSERT_MES(height >= real_start_height && height <= db_height, false, "Height not in expected range");
-    if (height >= start_height)
-      distribution[height - start_height]++;
-    else
-      base++;
-    return true;
-  });
-  if (!r)
-    return false;
-  return true;
+return m_db->get_output_distribution(amount, start_height, to_height, distribution, base);
 }
 //------------------------------------------------------------------
 // This function takes a list of block hashes from another node
@@ -4165,9 +4210,9 @@ uint64_t Blockchain::get_difficulty_target() const
   return DIFFICULTY_TARGET;
 }
 
-std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> Blockchain:: get_output_histogram(const std::vector<uint64_t> &amounts, bool unlocked, uint64_t recent_cutoff) const
+std::map<uint64_t, std::tuple<uint64_t, uint64_t, uint64_t>> Blockchain:: get_output_histogram(const std::vector<uint64_t> &amounts, bool unlocked, uint64_t recent_cutoff, uint64_t min_count) const
 {
-  return m_db->get_output_histogram(amounts, unlocked, recent_cutoff);
+  return m_db->get_output_histogram(amounts, unlocked, recent_cutoff, min_count);
 }
 
 std::list<std::pair<Blockchain::block_extended_info,uint64_t>> Blockchain::get_alternative_chains() const

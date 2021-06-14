@@ -6,7 +6,9 @@
 
 */
 
-// Copyright (c) 2014-2018, The Monero Project
+// Copyright (c) 2021, Private Pay - Reborn
+// Copyright (c) 2014-2021, The Monero Project
+// Copyright (c) 2017-2021, The Masari Project
 // 
 // All rights reserved.
 // 
@@ -138,6 +140,8 @@ public:
   bool relay_tx(const std::vector<std::string>& args);
 
   bool sync_info(const std::vector<std::string>& args);
+
+  bool version(const std::vector<std::string>& args);
 };
 
 } // namespace daemonize
