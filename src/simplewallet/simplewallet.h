@@ -1,6 +1,4 @@
-// Copyright (c) 2021, Private Pay - Reborn
-// Copyright (c) 2014-2021, The Monero Project
-// Copyright (c) 2017-2021, The Masari Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -52,8 +50,8 @@
 
 #undef MONERO_DEFAULT_LOG_CATEGORY
 #define MONERO_DEFAULT_LOG_CATEGORY "wallet.simplewallet"
-
-constexpr const char PRIVATEPAY_DONATION_ADDR[] = "PPa1WrZD29JHZvpX4iTNsSgoMwuX2FqocZn6c5TNoeV9HqfsAUomZRt5rsSL36HABKgyJcVdg2nvpf96hkLxSjJW3mAg6auLaf";
+// Hardcode Monero's donation address (see #1447)
+constexpr const char MONERO_DONATION_ADDR[] = "44AFFq5kSiGBoZ4NMDwYtN18obc8AemS33DBLWs3H7otXft3XjrpDtQGv7SqSsaBYBb98uNbr2VBBEt7f2wfn3RVGQBEP3A";
 
 /*!
  * \namespace cryptonote
@@ -121,6 +119,7 @@ namespace cryptonote
     bool set_always_confirm_transfers(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_print_ring_members(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_store_tx_info(const std::vector<std::string> &args = std::vector<std::string>());
+    bool set_default_ring_size(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_auto_refresh(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_refresh_type(const std::vector<std::string> &args = std::vector<std::string>());
     bool set_confirm_missing_payment_id(const std::vector<std::string> &args = std::vector<std::string>());
@@ -151,14 +150,19 @@ namespace cryptonote
     bool show_blockchain_height(const std::vector<std::string> &args);
     bool transfer_main(int transfer_type, const std::vector<std::string> &args);
     bool transfer(const std::vector<std::string> &args);
+    bool transfer_new(const std::vector<std::string> &args);
     bool locked_transfer(const std::vector<std::string> &args);
     bool sweep_main(uint64_t below, const std::vector<std::string> &args);
     bool sweep_all(const std::vector<std::string> &args);
     bool sweep_below(const std::vector<std::string> &args);
     bool sweep_single(const std::vector<std::string> &args);
+    bool sweep_unmixable(const std::vector<std::string> &args);
     bool donate(const std::vector<std::string> &args);
     bool sign_transfer(const std::vector<std::string> &args);
     bool submit_transfer(const std::vector<std::string> &args);
+    std::vector<std::vector<cryptonote::tx_destination_entry>> split_amounts(
+        std::vector<cryptonote::tx_destination_entry> dsts, size_t num_splits
+    );
     bool account(const std::vector<std::string> &args = std::vector<std::string>());
     void print_accounts();
     void print_accounts(const std::string& tag);
@@ -214,7 +218,7 @@ namespace cryptonote
     bool blackball(const std::vector<std::string>& args);
     bool unblackball(const std::vector<std::string>& args);
     bool blackballed(const std::vector<std::string>& args);
-	bool version(const std::vector<std::string>& args);
+    bool version(const std::vector<std::string>& args);
 
     uint64_t get_daemon_blockchain_height(std::string& err);
     bool try_connect_to_daemon(bool silent = false, uint32_t* version = nullptr);
@@ -225,6 +229,7 @@ namespace cryptonote
     bool print_ring_members(const std::vector<tools::wallet2::pending_tx>& ptx_vector, std::ostream& ostr);
     std::string get_prompt() const;
     bool print_seed(bool encrypted);
+    bool is_daemon_trusted() const { return *m_trusted_daemon; }
 
     /*!
      * \brief Prints the seed with a nice message
@@ -327,7 +332,7 @@ namespace cryptonote
     bool m_restore_deterministic_wallet;  // recover flag
     bool m_restore_multisig_wallet;  // recover flag
     bool m_non_deterministic;  // old 2-random generation
-    bool m_trusted_daemon;
+    boost::optional<bool> m_trusted_daemon;
     bool m_allow_mismatched_daemon_version;
     bool m_restoring;           // are we restoring, by whatever method?
     uint64_t m_restore_height;  // optional

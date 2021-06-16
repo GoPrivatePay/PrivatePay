@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
@@ -61,6 +60,7 @@ namespace Monero {
 
 namespace {
     // copy-pasted from simplewallet
+    static const size_t DEFAULT_MIXIN = 6;
     static const int    DEFAULT_REFRESH_INTERVAL_MILLIS = 1000 * 10;
     // limit maximum refresh interval as one minute
     static const int    MAX_REFRESH_INTERVAL_MILLIS = 1000 * 60 * 1;
@@ -338,6 +338,7 @@ WalletImpl::WalletImpl(NetworkType nettype)
     , m_trustedDaemon(false)
     , m_wallet2Callback(nullptr)
     , m_recoveringFromSeed(false)
+    , m_recoveringFromDevice(false)
     , m_synchronized(false)
     , m_rebuildWalletCache(false)
     , m_is_connected(false)
@@ -385,6 +386,7 @@ bool WalletImpl::create(const std::string &path, const std::string &password, co
 
     clearStatus();
     m_recoveringFromSeed = false;
+    m_recoveringFromDevice = false;
     bool keys_file_exists;
     bool wallet_file_exists;
     tools::wallet2::wallet_exists(path, keys_file_exists, wallet_file_exists);
@@ -511,8 +513,8 @@ bool WalletImpl::recoverFromKeysWithPassword(const std::string &path,
     // parse optional spend key
     crypto::secret_key spendkey;
     bool has_spendkey = false;
-    cryptonote::blobdata spendkey_data;
     if (!spendkey_string.empty()) {
+        cryptonote::blobdata spendkey_data;
         if(!epee::string_tools::parse_hexstr_to_binbuff(spendkey_string, spendkey_data) || spendkey_data.size() != sizeof(crypto::secret_key))
         {
             m_errorString = tr("failed to parse secret spend key");
@@ -524,33 +526,20 @@ bool WalletImpl::recoverFromKeysWithPassword(const std::string &path,
     }
 
     // parse view secret key
-    crypto::secret_key viewkey;
     if (viewkey_string.empty()) {
-        if(has_spendkey)
-        {
-          // generate deterministic view key if it was not supplied
-          crypto::ec_scalar scalar;
-          crypto::hash_to_scalar(spendkey_data.data(), sizeof(crypto::secret_key), scalar);
-          viewkey = reinterpret_cast<crypto::secret_key &>(scalar);
-        }
-        else {
-          m_errorString = tr("No keys supplied, cancelled");
-          m_status = Status_Error;
-          return false;
-        }
+        m_errorString = tr("No view key supplied, cancelled");
+        m_status = Status_Error;
+        return false;
     }
-    else
+    cryptonote::blobdata viewkey_data;
+    if(!epee::string_tools::parse_hexstr_to_binbuff(viewkey_string, viewkey_data) || viewkey_data.size() != sizeof(crypto::secret_key))
     {
-      cryptonote::blobdata viewkey_data;
-      if(!epee::string_tools::parse_hexstr_to_binbuff(viewkey_string, viewkey_data) || viewkey_data.size() != sizeof(crypto::secret_key))
-      {
-          m_errorString = tr("failed to parse secret view key");
-          m_status = Status_Error;
-          return false;
-      }
-      viewkey = *reinterpret_cast<const crypto::secret_key*>(viewkey_data.data());
+        m_errorString = tr("failed to parse secret view key");
+        m_status = Status_Error;
+        return false;
     }
-    
+    crypto::secret_key viewkey = *reinterpret_cast<const crypto::secret_key*>(viewkey_data.data());
+
     // check the spend and view keys match the given address
     crypto::public_key pkey;
     if(has_spendkey) {
@@ -597,11 +586,29 @@ bool WalletImpl::recoverFromKeysWithPassword(const std::string &path,
     return true;
 }
 
+bool WalletImpl::recoverFromDevice(const std::string &path, const std::string &password, const std::string &device_name)
+{
+    clearStatus();
+    m_recoveringFromSeed = false;
+    m_recoveringFromDevice = true;
+    try
+    {
+        m_wallet->restore(path, password, device_name);
+        LOG_PRINT_L1("Generated new wallet from device: " + device_name);
+    }
+    catch (const std::exception& e) {
+        m_errorString = string(tr("failed to generate new wallet: ")) + e.what();
+        m_status = Status_Error;
+        return false;
+    }
+    return true;
+}
 
 bool WalletImpl::open(const std::string &path, const std::string &password)
 {
     clearStatus();
     m_recoveringFromSeed = false;
+    m_recoveringFromDevice = false;
     try {
         // TODO: handle "deprecated"
         // Check if wallet cache exists
@@ -641,6 +648,7 @@ bool WalletImpl::recover(const std::string &path, const std::string &password, c
     }
 
     m_recoveringFromSeed = true;
+    m_recoveringFromDevice = false;
     crypto::secret_key recovery_key;
     std::string old_language;
     if (!crypto::ElectrumWords::words_to_bytes(seed, recovery_key, old_language)) {
@@ -712,17 +720,6 @@ void WalletImpl::setSeedLanguage(const std::string &arg)
 int WalletImpl::status() const
 {
     return m_status;
-}
-
-bool WalletImpl::isMultisig() const
-{
-  bool ready;
-  if(!m_wallet->multisig(&ready))
-    return false;
-  else if(!ready)
-    return false;
-  else
-    return true;
 }
 
 std::string WalletImpl::errorString() const
@@ -859,6 +856,16 @@ void WalletImpl::setRefreshFromBlockHeight(uint64_t refresh_from_block_height)
 void WalletImpl::setRecoveringFromSeed(bool recoveringFromSeed)
 {
     m_recoveringFromSeed = recoveringFromSeed;
+}
+
+void WalletImpl::setRecoveringFromDevice(bool recoveringFromDevice)
+{
+    m_recoveringFromDevice = recoveringFromDevice;
+}
+
+void WalletImpl::setSubaddressLookahead(uint32_t major, uint32_t minor)
+{
+    m_wallet->set_subaddress_lookahead(major, minor);
 }
 
 uint64_t WalletImpl::balance(uint32_t accountIndex) const
@@ -1300,6 +1307,107 @@ PendingTransaction *WalletImpl::createTransaction(const string &dst_addr, const 
     return transaction;
 }
 
+PendingTransaction *WalletImpl::createSweepUnmixableTransaction()
+
+{
+    clearStatus();
+    vector<cryptonote::tx_destination_entry> dsts;
+    cryptonote::tx_destination_entry de;
+
+    PendingTransactionImpl * transaction = new PendingTransactionImpl(*this);
+
+    do {
+        try {
+            transaction->m_pending_tx = m_wallet->create_unmixable_sweep_transactions(m_trustedDaemon);
+
+        } catch (const tools::error::daemon_busy&) {
+            // TODO: make it translatable with "tr"?
+            m_errorString = tr("daemon is busy. Please try again later.");
+            m_status = Status_Error;
+        } catch (const tools::error::no_connection_to_daemon&) {
+            m_errorString = tr("no connection to daemon. Please make sure daemon is running.");
+            m_status = Status_Error;
+        } catch (const tools::error::wallet_rpc_error& e) {
+            m_errorString = tr("RPC error: ") +  e.to_string();
+            m_status = Status_Error;
+        } catch (const tools::error::get_random_outs_error&) {
+            m_errorString = tr("failed to get random outputs to mix");
+            m_status = Status_Error;
+
+        } catch (const tools::error::not_enough_unlocked_money& e) {
+            m_status = Status_Error;
+            std::ostringstream writer;
+
+            writer << boost::format(tr("not enough money to transfer, available only %s, sent amount %s")) %
+                      print_money(e.available()) %
+                      print_money(e.tx_amount());
+            m_errorString = writer.str();
+
+        } catch (const tools::error::not_enough_money& e) {
+            m_status = Status_Error;
+            std::ostringstream writer;
+
+            writer << boost::format(tr("not enough money to transfer, overall balance only %s, sent amount %s")) %
+                      print_money(e.available()) %
+                      print_money(e.tx_amount());
+            m_errorString = writer.str();
+
+        } catch (const tools::error::tx_not_possible& e) {
+            m_status = Status_Error;
+            std::ostringstream writer;
+
+            writer << boost::format(tr("not enough money to transfer, available only %s, transaction amount %s = %s + %s (fee)")) %
+                      print_money(e.available()) %
+                      print_money(e.tx_amount() + e.fee())  %
+                      print_money(e.tx_amount()) %
+                      print_money(e.fee());
+            m_errorString = writer.str();
+
+        } catch (const tools::error::not_enough_outs_to_mix& e) {
+            std::ostringstream writer;
+            writer << tr("not enough outputs for specified ring size") << " = " << (e.mixin_count() + 1) << ":";
+            for (const std::pair<uint64_t, uint64_t> outs_for_amount : e.scanty_outs()) {
+                writer << "\n" << tr("output amount") << " = " << print_money(outs_for_amount.first) << ", " << tr("found outputs to use") << " = " << outs_for_amount.second;
+            }
+            m_errorString = writer.str();
+            m_status = Status_Error;
+        } catch (const tools::error::tx_not_constructed&) {
+            m_errorString = tr("transaction was not constructed");
+            m_status = Status_Error;
+        } catch (const tools::error::tx_rejected& e) {
+            std::ostringstream writer;
+            writer << (boost::format(tr("transaction %s was rejected by daemon with status: ")) % get_transaction_hash(e.tx())) <<  e.status();
+            m_errorString = writer.str();
+            m_status = Status_Error;
+        } catch (const tools::error::tx_sum_overflow& e) {
+            m_errorString = e.what();
+            m_status = Status_Error;
+        } catch (const tools::error::zero_destination&) {
+            m_errorString =  tr("one of destinations is zero");
+            m_status = Status_Error;
+        } catch (const tools::error::tx_too_big& e) {
+            m_errorString =  tr("failed to find a suitable way to split transactions");
+            m_status = Status_Error;
+        } catch (const tools::error::transfer_error& e) {
+            m_errorString = string(tr("unknown transfer error: ")) + e.what();
+            m_status = Status_Error;
+        } catch (const tools::error::wallet_internal_error& e) {
+            m_errorString =  string(tr("internal error: ")) + e.what();
+            m_status = Status_Error;
+        } catch (const std::exception& e) {
+            m_errorString =  string(tr("unexpected error: ")) + e.what();
+            m_status = Status_Error;
+        } catch (...) {
+            m_errorString = tr("unknown error");
+            m_status = Status_Error;
+        }
+    } while (false);
+
+    transaction->m_status = m_status;
+    transaction->m_errorString = m_errorString;
+    return transaction;
+}
+
 void WalletImpl::disposeTransaction(PendingTransaction *t)
 {
     delete t;
@@ -1675,7 +1783,7 @@ void WalletImpl::refreshThreadFunc()
         // if auto refresh enabled, we wait for the "m_refreshIntervalSeconds" interval.
         // if not - we wait forever
         if (m_refreshIntervalMillis > 0) {
-            boost::posix_time::milliseconds wait_for_ms(m_refreshIntervalMillis);
+            boost::posix_time::milliseconds wait_for_ms(m_refreshIntervalMillis.load());
             m_refreshCV.timed_wait(lock, wait_for_ms);
         } else {
             m_refreshCV.wait(lock);
@@ -1762,7 +1870,7 @@ bool WalletImpl::isNewWallet() const
     // with the daemon (pull hashes instead of pull blocks).
     // If wallet cache is rebuilt, creation height stored in .keys is used.
     // Watch only wallet is a copy of an existing wallet. 
-    return !(blockChainHeight() > 1 || m_recoveringFromSeed || m_rebuildWalletCache) && !watchOnly();
+    return !(blockChainHeight() > 1 || m_recoveringFromSeed || m_recoveringFromDevice || m_rebuildWalletCache) && !watchOnly();
 }
 
 bool WalletImpl::doInit(const string &daemon_address, uint64_t upper_transaction_size_limit, bool ssl)

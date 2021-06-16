@@ -1,6 +1,4 @@
-// Copyright (c) 2021, Private Pay - Reborn
-// Copyright (c) 2014-2021, The Monero Project
-// Copyright (c) 2017-2021, The Masari Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -126,7 +124,7 @@ int main(int argc, char const * argv[])
       return 0;
     }
 
-    // Monero Version
+    // privatepay Version
     if (command_line::get_arg(vm, command_line::arg_version))
     {
       std::cout << "PrivatePay '" << MONERO_RELEASE_NAME << "' (v" << MONERO_VERSION_FULL << ")" << ENDL;
@@ -181,7 +179,7 @@ int main(int argc, char const * argv[])
     }
 
     // data_dir
-    //   default: e.g. ~/.bitmonero/ or ~/.bitmonero/testnet
+    //   default: e.g. ~/.privatepay/ or ~/.privatepay/testnet
     //   if data-dir argument given:
     //     absolute path
     //     relative path: relative to cwd
@@ -264,6 +262,9 @@ int main(int argc, char const * argv[])
         }
         else
         {
+#ifdef HAVE_READLINE
+          rdln::suspend_readline pause_readline;
+#endif
           std::cerr << "Unknown command: " << command.front() << std::endl;
           return 1;
         }

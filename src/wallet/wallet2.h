@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -228,7 +227,7 @@ namespace tools
       std::vector<rct::key> m_multisig_k;
       std::vector<multisig_info> m_multisig_info; // one per other participant
 
-      bool is_rct() const { return true; }
+      bool is_rct() const { return m_rct; }
       uint64_t amount() const { return m_amount; }
       const crypto::public_key &get_public_key() const { return boost::get<const cryptonote::txout_to_key>(m_tx.vout[m_internal_output_index].target).key; }
 
@@ -320,7 +319,7 @@ namespace tools
       std::vector<size_t> selected_transfers;
       std::vector<uint8_t> extra;
       uint64_t unlock_time;
-      bool use_rct = true;
+      bool use_rct;
       std::vector<cryptonote::tx_destination_entry> dests; // original setup, does not include change
       uint32_t subaddr_account;   // subaddress account of your wallet to be used in this transfer
       std::set<uint32_t> subaddr_indices;  // set of address indices used as inputs in this transfer
@@ -475,26 +474,24 @@ namespace tools
      */
     crypto::secret_key generate(const std::string& wallet, const epee::wipeable_string& password,
       const crypto::secret_key& recovery_param = crypto::secret_key(), bool recover = false,
-      bool two_random = false, bool create_address_file = false, uint64_t restore_height = 0);
+      bool two_random = false, bool create_address_file = false);
     /*!
      * \brief Creates a wallet from a public address and a spend/view secret key pair.
-     * \param  wallet_                 Name of wallet file
-     * \param  password                Password of wallet file
-     * \param  account_public_address  The account's public address
-     * \param  spendkey                spend secret key
-     * \param  viewkey                 view secret key
-     * \param  create_address_file     Whether to create an address file
+     * \param  wallet_              Name of wallet file
+     * \param  password             Password of wallet file
+     * \param  viewkey              view secret key
+     * \param  spendkey             spend secret key
+     * \param  create_address_file  Whether to create an address file
      */
     void generate(const std::string& wallet, const epee::wipeable_string& password,
       const cryptonote::account_public_address &account_public_address,
       const crypto::secret_key& spendkey, const crypto::secret_key& viewkey, bool create_address_file = false);
     /*!
      * \brief Creates a watch only wallet from a public address and a view secret key.
-     * \param  wallet_                 Name of wallet file
-     * \param  password                Password of wallet file
-     * \param  account_public_address  The account's public address
-     * \param  viewkey                 view secret key
-     * \param  create_address_file     Whether to create an address file
+     * \param  wallet_              Name of wallet file
+     * \param  password             Password of wallet file
+     * \param  viewkey              view secret key
+     * \param  create_address_file  Whether to create an address file
      */
     void generate(const std::string& wallet, const epee::wipeable_string& password,
       const cryptonote::account_public_address &account_public_address,
@@ -562,13 +559,13 @@ namespace tools
     void rewrite(const std::string& wallet_name, const epee::wipeable_string& password);
     void write_watch_only_wallet(const std::string& wallet_name, const epee::wipeable_string& password, std::string &new_keys_filename);
     void load(const std::string& wallet, const epee::wipeable_string& password);
-    void store(bool create_address_file = false);
+    void store();
     /*!
-     * \brief store_to  Stores wallet to another file(s), deleting old ones
-     * \param path      Path to the wallet file (keys and address filenames will be generated based on this filename)
-     * \param password  Password to protect new wallet (TODO: probably better save the password in the wallet object?)
+     * \brief store_to - stores wallet to another file(s), deleting old ones
+     * \param path     - path to the wallet file (keys and address filenames will be generated based on this filename)
+     * \param password - password to protect new wallet (TODO: probably better save the password in the wallet object?)
      */
-    void store_to(const std::string &path, const epee::wipeable_string &password, bool create_address_file = false);
+    void store_to(const std::string &path, const epee::wipeable_string &password);
 
     std::string path() const;
 
@@ -707,6 +704,7 @@ namespace tools
     bool sign_multisig_tx(multisig_tx_set &exported_txs, std::vector<crypto::hash> &txids);
     bool sign_multisig_tx_to_file(multisig_tx_set &exported_txs, const std::string &filename, std::vector<crypto::hash> &txids);
     std::vector<pending_tx> create_unmixable_sweep_transactions(bool trusted_daemon);
+    void discard_unmixable_outputs(bool trusted_daemon);
     bool check_connection(uint32_t *version = NULL, uint32_t timeout = 200000);
     void get_transfers(wallet2::transfer_container& incoming_transfers) const;
     void get_payments(const crypto::hash& payment_id, std::list<wallet2::payment_details>& payments, uint64_t min_height = 0, const boost::optional<uint32_t>& subaddr_account = boost::none, const std::set<uint32_t>& subaddr_indices = {}) const;
@@ -877,6 +875,8 @@ namespace tools
     void key_reuse_mitigation2(bool value) { m_key_reuse_mitigation2 = value; }
     uint64_t segregation_height() const { return m_segregation_height; }
     void segregation_height(uint64_t height) { m_segregation_height = height; }
+    bool confirm_non_default_ring_size() const { return m_confirm_non_default_ring_size; }
+    void confirm_non_default_ring_size(bool always) { m_confirm_non_default_ring_size = always; }
 
     bool get_tx_key(const crypto::hash &txid, crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys) const;
     void check_tx_key(const crypto::hash &txid, const crypto::secret_key &tx_key, const std::vector<crypto::secret_key> &additional_tx_keys, const cryptonote::account_public_address &address, uint64_t &received, bool &in_pool, uint64_t &confirmations);
@@ -960,7 +960,7 @@ namespace tools
     /*!
      * \brief  Set the label of the given tag.
      * \param  tag            Tag's name (which must be non-empty).
-     * \param  description    Tag's description.
+     * \param  label          Tag's description.
      */
     void set_account_tag_description(const std::string& tag, const std::string& description);
 
@@ -1097,7 +1097,7 @@ namespace tools
     void get_short_chain_history(std::list<crypto::hash>& ids) const;
     bool is_tx_spendtime_unlocked(uint64_t unlock_time, uint64_t block_height) const;
     bool clear();
-    void pull_blocks(uint64_t start_height, uint64_t& blocks_start_height, const std::list<crypto::hash> &short_chain_history, std::list<cryptonote::block_complete_entry> &blocks, std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices, bool is_init = false);
+    void pull_blocks(uint64_t start_height, uint64_t& blocks_start_height, const std::list<crypto::hash> &short_chain_history, std::list<cryptonote::block_complete_entry> &blocks, std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices);
     void pull_hashes(uint64_t start_height, uint64_t& blocks_start_height, const std::list<crypto::hash> &short_chain_history, std::list<crypto::hash> &hashes);
     void fast_refresh(uint64_t stop_height, uint64_t &blocks_start_height, std::list<crypto::hash> &short_chain_history);
     void pull_next_blocks(uint64_t start_height, uint64_t &blocks_start_height, std::list<crypto::hash> &short_chain_history, const std::list<cryptonote::block_complete_entry> &prev_blocks, std::list<cryptonote::block_complete_entry> &blocks, std::vector<cryptonote::COMMAND_RPC_GET_BLOCKS_FAST::block_output_indices> &o_indices, bool &error);
@@ -1198,6 +1198,7 @@ namespace tools
     // m_refresh_from_block_height was defaulted to zero.*/
     bool m_explicit_refresh_from_block_height;
     bool m_confirm_missing_payment_id;
+    bool m_confirm_non_default_ring_size;
     bool m_ask_password;
     uint32_t m_min_output_count;
     uint64_t m_min_output_value;
@@ -1218,7 +1219,7 @@ namespace tools
     bool m_light_wallet; /* sends view key to daemon for scanning */
     uint64_t m_light_wallet_scanned_block_height;
     uint64_t m_light_wallet_blockchain_height;
-    uint64_t m_light_wallet_per_kb_fee = DYNAMIC_FEE_PER_KB_BASE_FEE;
+    uint64_t m_light_wallet_per_kb_fee = FEE_PER_KB;
     bool m_light_wallet_connected;
     uint64_t m_light_wallet_balance;
     uint64_t m_light_wallet_unlocked_balance;

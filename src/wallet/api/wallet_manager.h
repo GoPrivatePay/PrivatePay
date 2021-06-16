@@ -1,6 +1,4 @@
-// Copyright (c) 2021, Private Pay - Reborn
-// Copyright (c) 2014-2021, The Monero Project
-// Copyright (c) 2017-2021, The Masari Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -66,6 +64,12 @@ public:
                                                     const std::string &addressString,
                                                     const std::string &viewKeyString,
                                                     const std::string &spendKeyString = "");
+    virtual Wallet * createWalletFromDevice(const std::string &path,
+                                            const std::string &password,
+                                            NetworkType nettype,
+                                            const std::string &deviceName,
+                                            uint64_t restoreHeight = 0,
+                                            const std::string &subaddressLookahead = "");
     virtual bool closeWallet(Wallet *wallet, bool store = true);
     bool walletExists(const std::string &path);
     bool verifyWalletPassword(const std::string &keys_file_name, const std::string &password, bool no_spend_key) const;

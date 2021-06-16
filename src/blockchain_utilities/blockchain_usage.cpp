@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
@@ -135,7 +134,7 @@ int main(int argc, char* argv[])
     return 1;
   }
 
-  mlog_configure(mlog_get_default_log_path("monero-blockchain-usage.log"), true);
+  mlog_configure(mlog_get_default_log_path("privatepay-blockchain-usage.log"), true);
   if (!command_line::is_arg_defaulted(vm, arg_log_level))
     mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
   else
@@ -235,7 +234,7 @@ int main(int argc, char* argv[])
       }
     }
     return true;
-  }, true);
+  });
 
   std::unordered_map<uint64_t, uint64_t> counts;
   size_t total = 0;

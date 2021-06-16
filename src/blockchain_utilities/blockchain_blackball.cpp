@@ -1,6 +1,4 @@
-// Copyright (c) 2021, Private Pay - Reborn
-// Copyright (c) 2014-2021, The Monero Project
-// Copyright (c) 2017-2021, The Masari Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -71,8 +69,9 @@ namespace std
 static std::string get_default_db_path()
 {
   boost::filesystem::path dir = tools::get_default_data_dir();
-  // store in .privatepay/shared-ringdb
-  dir /= "shared-ringdb";
+  // remove .privatepay, replace with .shared-ringdb
+  dir = dir.remove_filename();
+  dir /= ".shared-ringdb";
   return dir.string();
 }
 
@@ -166,7 +165,7 @@ int main(int argc, char* argv[])
       "blackball-db-dir", "Specify blackball database directory",
       get_default_db_path(),
       {{ &arg_testnet_on, &arg_stagenet_on }},
-      [](std::array<bool, 2> testnet_stagenet, bool defaulted, std::string val) {
+      [](std::array<bool, 2> testnet_stagenet, bool defaulted, std::string val)->std::string {
         if (testnet_stagenet[0])
           return (boost::filesystem::path(val) / "testnet").string();
         else if (testnet_stagenet[1])

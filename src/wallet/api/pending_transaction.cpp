@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
@@ -150,6 +149,14 @@ uint64_t PendingTransactionImpl::amount() const
     return result;
 }
 
+uint64_t PendingTransactionImpl::dust() const
+{
+    uint64_t result = 0;
+    for (const auto & ptx : m_pending_tx) {
+        result += ptx.dust;
+    }
+    return result;
+}
 
 uint64_t PendingTransactionImpl::fee() const
 {

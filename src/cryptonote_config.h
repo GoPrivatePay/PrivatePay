@@ -63,6 +63,7 @@
 #define CRYPTONOTE_REWARD_BLOCKS_WINDOW                 100
 #define CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1    300000
 #define CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2    CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V1
+#define CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5    300000 //size of block (bytes) after which reward for block calculated using block size - second change, from v5
 #define CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE          600
 #define CRYPTONOTE_DISPLAY_DECIMAL_POINT                12
 // COIN - number of smallest units in one coin
@@ -70,10 +71,17 @@
 
 #define DEFAULT_MIXIN                                   12
 #define DEFAULT_RINGSIZE                                DEFAULT_MIXIN + 1
+
+#define FEE_PER_KB_OLD                                  ((uint64_t)10000000000) // pow(10, 10)
+#define FEE_PER_KB                                      ((uint64_t)2000000000) // 2 * pow(10, 9)
 #define DYNAMIC_FEE_PER_KB_BASE_FEE                     ((uint64_t)400000000) // 4 * pow(10,8)))
 #define DYNAMIC_FEE_PER_KB_BASE_BLOCK_REWARD            ((uint64_t)10000000000000) // 10 * pow(10,12)
 
+#define DYNAMIC_FEE_PER_KB_BASE_FEE_V5                  ((uint64_t)2000000000 * (uint64_t)CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V2 / CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE_V5)
+
 #define DIFFICULTY_TARGET                               120  // seconds
+#define DIFFICULTY_TARGET_V2                            120  // seconds
+#define DIFFICULTY_TARGET_V1                            120  // seconds - before first fork
 #define DIFFICULTY_WINDOW                               720 // blocks
 #define DIFFICULTY_LAG                                  15  // !!!
 #define DIFFICULTY_CUT                                  60  // timestamps to cut after sorting
@@ -91,9 +99,11 @@
 #define DIFFICULTY_BLOCKS_COUNT_V6                      DIFFICULTY_WINDOW_V6 + 1
 
 #define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V1   DIFFICULTY_TARGET * CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS
+#define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_SECONDS_V2   DIFFICULTY_TARGET_V2 * CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS
 #define CRYPTONOTE_LOCKED_TX_ALLOWED_DELTA_BLOCKS       1
 
 #define BLOCKS_IDS_SYNCHRONIZING_DEFAULT_COUNT          10000  //by default, blocks ids count in synchronizing
+#define BLOCKS_SYNCHRONIZING_DEFAULT_COUNT_PRE_V4       BLOCKS_SYNCHRONIZING_DEFAULT_COUNT    //by default, blocks count in blocks downloading
 #define BLOCKS_SYNCHRONIZING_DEFAULT_COUNT              20     //by default, blocks count in blocks downloading
 
 #define CRYPTONOTE_MEMPOOL_TX_LIVETIME                    (86400*3) //seconds, three days
@@ -132,6 +142,11 @@
 #define P2P_NET_DATA_FILENAME                   "p2pstate.bin"
 #define MINER_CONFIG_FILE_NAME                  "miner_conf.json"
 
+#define HF_VERSION_DYNAMIC_FEE                  4
+#define HF_VERSION_MIN_MIXIN_4                  12
+#define HF_VERSION_MIN_MIXIN_6                  12
+#define HF_VERSION_ENFORCE_RCT                  8
+
 #define THREAD_STACK_SIZE                       5 * 1024 * 1024
 
 #define PER_KB_FEE_QUANTIZATION_DECIMALS        8
@@ -144,6 +159,7 @@
 namespace config
 {
   uint64_t const DEFAULT_DUST_THRESHOLD = 0; // deprecated
+  uint64_t const BASE_REWARD_CLAMP_THRESHOLD = ((uint64_t)100000000); // pow(10, 8)
   std::string const P2P_REMOTE_DEBUG_TRUSTED_PUB_KEY = "0000000000000000000000000000000000000000000000000000000000000000";
 
   uint64_t const CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 372101; // PPa
@@ -170,6 +186,8 @@ namespace config
     boost::uuids::uuid const NETWORK_ID = { {
         0x12 ,0xa0, 0xF1, 0x71 , 0x41, 0x14 , 0x42, 0x61, 0x17, 0x31, 0x00, 0x82, 0x16, 0xA1, 0xA1, 0x13
       } }; // Bender's daydream
+	std::string const GENESIS_TX = "013c01ff0001ffffffffffff03029b2e4c0281c0b02e7c53291a94d1d0cbff8883f8024f5142ee494ffbbd08807121017767aafcde9be00dcfd098715ebcf7f410daebc582fda69d24a28e9d0bc890d1";
+    uint32_t const GENESIS_NONCE = 10001;
   }
 
   namespace stagenet
@@ -183,6 +201,8 @@ namespace config
     boost::uuids::uuid const NETWORK_ID = { {
         0x12 ,0x30, 0xF1, 0x71 , 0x61, 0x04 , 0x41, 0x61, 0x17, 0x31, 0x00, 0x82, 0x16, 0xA1, 0xA1, 0x14
       } }; // Bender's daydream
+	std::string const GENESIS_TX = "013c01ff0001ffffffffffff0302df5d56da0c7d643ddd1ce61901c7bdc5fb1738bfe39fbe69c28a3a7032729c0f2101168d0c4ca86fb55a4cf6a36d31431be1c53a3bd7411bb24e8832410289fa6f3b";
+    uint32_t const GENESIS_NONCE = 10002;
   }
 }
 

@@ -1,6 +1,4 @@
-// Copyright (c) 2021, Private Pay - Reborn
-// Copyright (c) 2014-2021, The Monero Project
-// Copyright (c) 2017-2021, The Masari Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -144,6 +142,11 @@ namespace cryptonote
   , "Check for new versions of privatepay: [disabled|notify|download|update]"
   , "notify"
   };
+  static const command_line::arg_descriptor<bool> arg_fluffy_blocks  = {
+    "fluffy-blocks"
+  , "Relay blocks as fluffy blocks (obsolete, now default)"
+  , true
+  };
   static const command_line::arg_descriptor<bool> arg_no_fluffy_blocks  = {
     "no-fluffy-blocks"
   , "Relay blocks as normal blocks"
@@ -255,6 +258,7 @@ namespace cryptonote
     command_line::add_arg(desc, arg_show_time_stats);
     command_line::add_arg(desc, arg_block_sync_size);
     command_line::add_arg(desc, arg_check_updates);
+    command_line::add_arg(desc, arg_fluffy_blocks);
     command_line::add_arg(desc, arg_no_fluffy_blocks);
     command_line::add_arg(desc, arg_test_dbg_lock_sleep);
     command_line::add_arg(desc, arg_offline);
@@ -299,6 +303,8 @@ namespace cryptonote
     m_fluffy_blocks_enabled = !get_arg(vm, arg_no_fluffy_blocks);
     m_offline = get_arg(vm, arg_offline);
     m_disable_dns_checkpoints = get_arg(vm, arg_disable_dns_checkpoints);
+    if (!command_line::is_arg_defaulted(vm, arg_fluffy_blocks))
+      MWARNING(arg_fluffy_blocks.name << " is obsolete, it is now default");
 
     if (command_line::get_arg(vm, arg_test_drop_download) == true)
       test_drop_download();
@@ -432,6 +438,7 @@ namespace cryptonote
       std::vector<std::string> options;
       boost::trim(db_sync_mode);
       boost::split(options, db_sync_mode, boost::is_any_of(" :"));
+      const bool db_sync_mode_is_default = command_line::is_arg_defaulted(vm, cryptonote::arg_db_sync_mode);
 
       for(const auto &option : options)
         MDEBUG("option: " << option);
@@ -452,18 +459,18 @@ namespace cryptonote
         {
           safemode = true;
           db_flags = DBF_SAFE;
-          sync_mode = db_nosync;
+          sync_mode = db_sync_mode_is_default ? db_defaultsync : db_nosync;
         }
         else if(options[0] == "fast")
         {
           db_flags = DBF_FAST;
-          sync_mode = db_async;
+          sync_mode = db_sync_mode_is_default ? db_defaultsync : db_async;
         }
         else if(options[0] == "fastest")
         {
           db_flags = DBF_FASTEST;
           blocks_per_sync = 1000; // default to fastest:async:1000
-          sync_mode = db_async;
+          sync_mode = db_sync_mode_is_default ? db_defaultsync : db_async;
         }
         else
           db_flags = DEFAULT_FLAGS;
@@ -472,9 +479,9 @@ namespace cryptonote
       if(options.size() >= 2 && !safemode)
       {
         if(options[1] == "sync")
-          sync_mode = db_sync;
+          sync_mode = db_sync_mode_is_default ? db_defaultsync : db_sync;
         else if(options[1] == "async")
-          sync_mode = db_async;
+          sync_mode = db_sync_mode_is_default ? db_defaultsync : db_async;
       }
 
       if(options.size() >= 3 && !safemode)
@@ -623,9 +630,8 @@ namespace cryptonote
     }
     bad_semantics_txes_lock.unlock();
 
-    // TODO-TK: need to consider tx versioning standard.
-    const size_t max_tx_version = CURRENT_TRANSACTION_VERSION;
     uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
+    const size_t max_tx_version = version == 1 ? 1 : 2;
     if (tx.version == 0 || tx.version > max_tx_version)
     {
       // v2 is the latest one we know
@@ -643,39 +649,6 @@ namespace cryptonote
       LOG_PRINT_L1("WRONG TRANSACTION BLOB, Failed to check tx " << tx_hash << " syntax, rejected");
       tvc.m_verifivation_failed = true;
       return false;
-    }
-
-    // resolve outPk references in rct txes
-    // outPk aren't the only thing that need resolving for a fully resolved tx,
-    // but outPk (1) are needed now to check range proof semantics, and
-    // (2) do not need access to the blockchain to find data
-    if (tx.version >= 1)
-    {
-      rct::rctSig &rv = tx.rct_signatures;
-      if (rv.outPk.size() != tx.vout.size())
-      {
-        LOG_PRINT_L1("WRONG TRANSACTION BLOB, Bad outPk size in tx " << tx_hash << ", rejected");
-        tvc.m_verifivation_failed = true;
-        return false;
-      }
-      for (size_t n = 0; n < tx.rct_signatures.outPk.size(); ++n)
-        rv.outPk[n].dest = rct::pk2rct(boost::get<txout_to_key>(tx.vout[n].target).key);
-
-      const bool bulletproof = rv.type == rct::RCTTypeFullBulletproof || rv.type == rct::RCTTypeSimpleBulletproof;
-      if (bulletproof)
-      {
-        if (rv.p.bulletproofs.size() != tx.vout.size())
-        {
-          LOG_PRINT_L1("WRONG TRANSACTION BLOB, Bad bulletproofs size in tx " << tx_hash << ", rejected");
-          tvc.m_verifivation_failed = true;
-          return false;
-        }
-        for (size_t n = 0; n < rv.outPk.size(); ++n)
-        {
-          rv.p.bulletproofs[n].V.resize(1);
-          rv.p.bulletproofs[n].V[0] = rv.outPk[n].mask;
-        }
-      }
     }
 
     if (keeped_by_block && get_blockchain_storage().is_within_compiled_block_hash_area())
@@ -703,6 +676,7 @@ namespace cryptonote
   bool core::handle_incoming_txs(const std::list<blobdata>& tx_blobs, std::vector<tx_verification_context>& tvc, bool keeped_by_block, bool relayed, bool do_not_relay)
   {
     TRY_ENTRY();
+    CRITICAL_REGION_LOCAL(m_incoming_tx_lock);
 
     struct result { bool res; cryptonote::transaction tx; crypto::hash hash; crypto::hash prefix_hash; bool in_txpool; bool in_blockchain; };
     std::vector<result> results(tx_blobs.size());
@@ -816,7 +790,7 @@ namespace cryptonote
       MERROR_VER("tx with invalid outputs, rejected for tx id= " << get_transaction_hash(tx));
       return false;
     }
-    if (tx.version >= 1)
+    if (tx.version > 1)
     {
       if (tx.rct_signatures.outPk.size() != tx.vout.size())
       {
@@ -831,7 +805,19 @@ namespace cryptonote
       return false;
     }
 
-    // for version >= 1, ringct signatures check verifies amounts match
+    if (tx.version == 1)
+    {
+      uint64_t amount_in = 0;
+      get_inputs_money_amount(tx, amount_in);
+      uint64_t amount_out = get_outs_money_amount(tx);
+
+      if(amount_in <= amount_out)
+      {
+        MERROR_VER("tx with wrong amounts: ins " << amount_in << ", outs " << amount_out << ", rejected for tx id= " << get_transaction_hash(tx));
+        return false;
+      }
+    }
+    // for version > 1, ringct signatures check verifies amounts match
 
     if(!keeped_by_block && get_object_blobsize(tx) >= m_blockchain_storage.get_current_cumulative_blocksize_limit() - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE)
     {
@@ -858,7 +844,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version >= 1)
+    if (tx.version >= 2)
     {
       const rct::rctSig &rv = tx.rct_signatures;
       switch (rv.type) {
@@ -908,7 +894,12 @@ namespace cryptonote
   //-----------------------------------------------------------------------------------------------
   size_t core::get_block_sync_size(uint64_t height) const
   {
-    return BLOCKS_SYNCHRONIZING_DEFAULT_COUNT;
+    static const uint64_t quick_height = m_nettype == TESTNET ? 801219 : m_nettype == MAINNET ? 1220516 : 0;
+    if (block_sync_size > 0)
+      return block_sync_size;
+    if (height >= quick_height)
+      return BLOCKS_SYNCHRONIZING_DEFAULT_COUNT;
+    return BLOCKS_SYNCHRONIZING_DEFAULT_COUNT_PRE_V4;
   }
   //-----------------------------------------------------------------------------------------------
   bool core::are_key_images_spent_in_pool(const std::vector<crypto::key_image>& key_im, std::vector<bool> &spent) const
@@ -961,7 +952,7 @@ namespace cryptonote
   bool core::check_tx_inputs_ring_members_diff(const transaction& tx) const
   {
     const uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
-    if (version >= 1)
+    if (version >= 6)
     {
       for(const auto& in: tx.vin)
       {
@@ -1054,7 +1045,7 @@ namespace cryptonote
     m_mempool.set_relayed(txs);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::get_block_template(block& b, std::string adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
+  bool core::get_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce)
   {
     return m_blockchain_storage.create_block_template(b, adr, diffic, height, expected_reward, ex_nonce);
   }
@@ -1064,9 +1055,9 @@ namespace cryptonote
     return m_blockchain_storage.find_blockchain_supplement(qblock_ids, resp);
   }
   //-----------------------------------------------------------------------------------------------
-  bool core::find_blockchain_supplement(const uint64_t req_start_block, const std::list<crypto::hash>& qblock_ids, std::list<std::pair<cryptonote::blobdata, std::list<cryptonote::blobdata> > >& blocks, uint64_t& total_height, uint64_t& start_height, bool pruned, size_t max_count) const
+  bool core::find_blockchain_supplement(const uint64_t req_start_block, const std::list<crypto::hash>& qblock_ids, std::list<std::pair<cryptonote::blobdata, std::list<cryptonote::blobdata> > >& blocks, uint64_t& total_height, uint64_t& start_height, size_t max_count) const
   {
-    return m_blockchain_storage.find_blockchain_supplement(req_start_block, qblock_ids, blocks, total_height, start_height, pruned, max_count);
+    return m_blockchain_storage.find_blockchain_supplement(req_start_block, qblock_ids, blocks, total_height, start_height, max_count);
   }
   //-----------------------------------------------------------------------------------------------
   bool core::get_random_outs_for_amounts(const COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::request& req, COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS::response& res) const

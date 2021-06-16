@@ -1,6 +1,4 @@
-// Copyright (c) 2021, Private Pay - Reborn
-// Copyright (c) 2014-2021, The Monero Project
-// Copyright (c) 2017-2021, The Masari Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -565,12 +563,12 @@ namespace cryptonote
     {
       std::list<std::string> txs_hashes;
       bool decode_as_json;
-	  bool prune;
+      bool prune;
 
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(txs_hashes)
         KV_SERIALIZE(decode_as_json)
-		KV_SERIALIZE_OPT(prune, false)
+        KV_SERIALIZE_OPT(prune, false)
       END_KV_SERIALIZE_MAP()
     };
 
@@ -1556,6 +1554,8 @@ namespace cryptonote
     std::vector<txpool_histo> histo;
     uint32_t num_double_spends;
 
+    txpool_stats(): bytes_total(0), bytes_min(0), bytes_max(0), bytes_med(0), fee_total(0), oldest(0), txs_total(0), num_failing(0), num_10m(0), num_not_relayed(0), histo_98pc(0), num_double_spends(0) {}
+
     BEGIN_KV_SERIALIZE_MAP()
       KV_SERIALIZE(bytes_total)
       KV_SERIALIZE(bytes_min)
@@ -2220,7 +2220,7 @@ namespace cryptonote
       BEGIN_KV_SERIALIZE_MAP()
         KV_SERIALIZE(amounts)
         KV_SERIALIZE_OPT(from_height, (uint64_t)0)
-		KV_SERIALIZE_OPT(to_height, (uint64_t)0)
+        KV_SERIALIZE_OPT(to_height, (uint64_t)0)
         KV_SERIALIZE_OPT(cumulative, false)
       END_KV_SERIALIZE_MAP()
     };

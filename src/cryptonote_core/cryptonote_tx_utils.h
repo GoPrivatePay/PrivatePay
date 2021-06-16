@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -38,7 +37,7 @@
 namespace cryptonote
 {
   //---------------------------------------------------------------
-  bool construct_miner_tx(size_t height, size_t median_size, uint64_t already_generated_coins, size_t current_block_size, uint64_t fee, std::string miner_address_str, transaction& tx, const blobdata& extra_nonce = blobdata(), size_t max_outs = 999, uint8_t hard_fork_version = 1);
+  bool construct_miner_tx(size_t height, size_t median_size, uint64_t already_generated_coins, size_t current_block_size, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce = blobdata(), size_t max_outs = 999, uint8_t hard_fork_version = 1);
 
   struct tx_source_entry
   {
@@ -50,7 +49,7 @@ namespace cryptonote
     std::vector<crypto::public_key> real_out_additional_tx_keys; //incoming real tx additional public keys
     size_t real_output_in_tx_index;     //index in transaction outputs vector
     uint64_t amount;                    //money
-    bool rct = true;                    //true if the output is rct (always in XPP)
+    bool rct;                           //true if the output is rct
     rct::key mask;                      //ringct amount mask
     rct::multisig_kLRki multisig_kLRki; //multisig info
 
@@ -94,7 +93,11 @@ namespace cryptonote
   bool construct_tx_with_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, const crypto::secret_key &tx_key, const std::vector<crypto::secret_key> &additional_tx_keys, bool rct = false, bool bulletproof = false, rct::multisig_out *msout = NULL, bool shuffle_outs = true);
   bool construct_tx_and_get_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys, bool rct = false, bool bulletproof = false, rct::multisig_out *msout = NULL);
 
-  bool generate_genesis_block(block& bl);
+  bool generate_genesis_block(
+      block& bl
+    , std::string const & genesis_tx
+    , uint32_t nonce
+    );
 
 }
 

@@ -1,6 +1,4 @@
-// Copyright (c) 2021, Private Pay - Reborn
-// Copyright (c) 2014-2021, The Monero Project
-// Copyright (c) 2017-2021, The Masari Project
+// Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
 //
@@ -113,6 +111,26 @@ Wallet *WalletManagerImpl::createWalletFromKeys(const std::string &path,
         wallet->setRefreshFromBlockHeight(restoreHeight);
     }
     wallet->recoverFromKeysWithPassword(path, password, language, addressString, viewKeyString, spendKeyString);
+    return wallet;
+}
+
+Wallet *WalletManagerImpl::createWalletFromDevice(const std::string &path,
+                                                  const std::string &password,
+                                                  NetworkType nettype,
+                                                  const std::string &deviceName,
+                                                  uint64_t restoreHeight,
+                                                  const std::string &subaddressLookahead)
+{
+    WalletImpl * wallet = new WalletImpl(nettype);
+    if(restoreHeight > 0){
+        wallet->setRefreshFromBlockHeight(restoreHeight);
+    }
+    auto lookahead = tools::parse_subaddress_lookahead(subaddressLookahead);
+    if (lookahead)
+    {
+        wallet->setSubaddressLookahead(lookahead->first, lookahead->second);
+    }
+    wallet->recoverFromDevice(path, password, deviceName);
     return wallet;
 }
 
@@ -249,7 +267,7 @@ double WalletManagerImpl::miningHashRate()
     return mres.speed;
 }
 
-uint64_t WalletManagerImpl::blockTarget() 
+uint64_t WalletManagerImpl::blockTarget()
 {
     cryptonote::COMMAND_RPC_GET_INFO::request ireq;
     cryptonote::COMMAND_RPC_GET_INFO::response ires;
@@ -259,7 +277,7 @@ uint64_t WalletManagerImpl::blockTarget()
     return ires.target;
 }
 
-bool WalletManagerImpl::isMining() 
+bool WalletManagerImpl::isMining()
 {
     cryptonote::COMMAND_RPC_MINING_STATUS::request mreq;
     cryptonote::COMMAND_RPC_MINING_STATUS::response mres;
@@ -289,7 +307,7 @@ bool WalletManagerImpl::stopMining()
     cryptonote::COMMAND_RPC_STOP_MINING::request mreq;
     cryptonote::COMMAND_RPC_STOP_MINING::response mres;
 
-   if (!epee::net_utils::invoke_http_json("/stop_mining", mreq, mres, m_http_client))
+    if (!epee::net_utils::invoke_http_json("/stop_mining", mreq, mres, m_http_client))
       return false;
     return mres.status == CORE_RPC_STATUS_OK;
 }

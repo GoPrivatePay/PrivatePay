@@ -1,6 +1,4 @@
-// Copyright (c) 2021, Private Pay - Reborn
-// Copyright (c) 2014-2021, The Monero Project
-// Copyright (c) 2017-2021, The Masari Project
+// Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
 // 
@@ -212,6 +210,27 @@ namespace cryptonote
     return true;
   }
   //------------------------------------------------------------------------------------------------------------------------------
+  static cryptonote::blobdata get_pruned_tx_blob(cryptonote::transaction &tx)
+  {
+    std::stringstream ss;
+    binary_archive<true> ba(ss);
+    bool r = tx.serialize_base(ba);
+    CHECK_AND_ASSERT_MES(r, cryptonote::blobdata(), "Failed to serialize rct signatures base");
+    return ss.str();
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  static cryptonote::blobdata get_pruned_tx_blob(const cryptonote::blobdata &blobdata)
+  {
+    cryptonote::transaction tx;
+
+    if (!cryptonote::parse_and_validate_tx_from_blob(blobdata, tx))
+    {
+      MERROR("Failed to parse and validate tx from blob");
+      return cryptonote::blobdata();
+    }
+    return get_pruned_tx_blob(tx);
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
   bool core_rpc_server::on_get_blocks(const COMMAND_RPC_GET_BLOCKS_FAST::request& req, COMMAND_RPC_GET_BLOCKS_FAST::response& res)
   {
     PERF_TIMER(on_get_blocks);
@@ -221,7 +240,7 @@ namespace cryptonote
 
     std::list<std::pair<cryptonote::blobdata, std::list<cryptonote::blobdata> > > bs;
 
-    if(!m_core.find_blockchain_supplement(req.start_height, req.block_ids, bs, res.current_height, res.start_height, req.prune, COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT))
+    if(!m_core.find_blockchain_supplement(req.start_height, req.block_ids, bs, res.current_height, res.start_height, COMMAND_RPC_GET_BLOCKS_FAST_MAX_COUNT))
     {
       res.status = "Failed";
       return false;
@@ -253,7 +272,10 @@ namespace cryptonote
       for (std::list<cryptonote::blobdata>::iterator i = bd.second.begin(); i != bd.second.end(); ++i)
       {
         unpruned_size += i->size();
-        res.blocks.back().txs.push_back(std::move(*i));
+        if (req.prune)
+          res.blocks.back().txs.push_back(get_pruned_tx_blob(std::move(*i)));
+        else
+          res.blocks.back().txs.push_back(std::move(*i));
         i->clear();
         i->shrink_to_fit();
         pruned_size += res.blocks.back().txs.back().size();
@@ -814,6 +836,12 @@ namespace cryptonote
       LOG_PRINT_L0(res.status);
       return true;
     }
+    if (info.is_subaddress)
+    {
+      res.status = "Mining to subaddress isn't supported yet";
+      LOG_PRINT_L0(res.status);
+      return true;
+    }
 
     unsigned int concurrency_count = boost::thread::hardware_concurrency() * 4;
 
@@ -835,7 +863,7 @@ namespace cryptonote
     boost::thread::attributes attrs;
     attrs.set_stack_size(THREAD_STACK_SIZE);
 
-    if(!m_core.get_miner().start(req.miner_address, static_cast<size_t>(req.threads_count), attrs, req.do_background_mining, req.ignore_battery))
+    if(!m_core.get_miner().start(info.address, static_cast<size_t>(req.threads_count), attrs, req.do_background_mining, req.ignore_battery))
     {
       res.status = "Failed, mining not started";
       LOG_PRINT_L0(res.status);
@@ -869,7 +897,8 @@ namespace cryptonote
     if ( lMiner.is_mining() ) {
       res.speed = lMiner.get_speed();
       res.threads_count = lMiner.get_threads_count();
-      res.address = lMiner.get_mining_address();
+      const account_public_address& lMiningAdr = lMiner.get_mining_address();
+      res.address = get_account_address_as_str(m_nettype, false, lMiningAdr);
     }
 
     res.status = CORE_RPC_STATUS_OK;
@@ -1100,7 +1129,7 @@ namespace cryptonote
     block b = AUTO_VAL_INIT(b);
     cryptonote::blobdata blob_reserve;
     blob_reserve.resize(req.reserve_size, 0);
-    if(!m_core.get_block_template(b, req.wallet_address, res.difficulty, res.height, res.expected_reward, blob_reserve))
+    if(!m_core.get_block_template(b, info.address, res.difficulty, res.height, res.expected_reward, blob_reserve))
     {
       error_resp.code = CORE_RPC_ERROR_CODE_INTERNAL_ERROR;
       error_resp.message = "Internal error: failed to create block template";
@@ -2072,6 +2101,13 @@ namespace cryptonote
         if (d.cached && amount == 0 && d.cached_from == req.from_height && d.cached_to == req.to_height)
         {
           res.distributions.push_back({amount, d.cached_start_height, d.cached_distribution, d.cached_base});
+          if (req.cumulative)
+          {
+            auto &distribution = res.distributions.back().distribution;
+            distribution[0] += d.cached_base;
+            for (size_t n = 1; n < distribution.size(); ++n)
+              distribution[n] += distribution[n-1];
+          }
           continue;
         }
 
@@ -2083,6 +2119,13 @@ namespace cryptonote
           {
             res.distributions.push_back({amount, slot.start_height, slot.distribution, slot.base});
             found = true;
+            if (req.cumulative)
+            {
+              auto &distribution = res.distributions.back().distribution;
+              distribution[0] += slot.base;
+              for (size_t n = 1; n < distribution.size(); ++n)
+                distribution[n] += distribution[n-1];
+            }
             break;
           }
         }
@@ -2103,12 +2146,6 @@ namespace cryptonote
           if (offset <= req.to_height && req.to_height - offset + 1 < distribution.size())
             distribution.resize(req.to_height - offset + 1);
         }
-        if (req.cumulative)
-        {
-          distribution[0] += base;
-          for (size_t n = 1; n < distribution.size(); ++n)
-            distribution[n] += distribution[n-1];
-        }
 
         if (amount == 0)
         {
@@ -2118,6 +2155,13 @@ namespace cryptonote
           d.cached_start_height = start_height;
           d.cached_base = base;
           d.cached = true;
+        }
+
+        if (req.cumulative)
+        {
+          distribution[0] += base;
+          for (size_t n = 1; n < distribution.size(); ++n)
+            distribution[n] += distribution[n-1];
         }
 
         res.distributions.push_back({amount, start_height, std::move(distribution), base});

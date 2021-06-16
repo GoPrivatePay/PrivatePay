@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -122,10 +121,10 @@ void BlockchainDB::pop_block()
   pop_block(blk, txs);
 }
 
-void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transaction& tx, const crypto::hash* tx_hash_ptr, const crypto::hash* tx_prunable_hash_ptr)
+void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transaction& tx, const crypto::hash* tx_hash_ptr)
 {
   bool miner_tx = false;
-  crypto::hash tx_hash, tx_prunable_hash;
+  crypto::hash tx_hash;
   if (!tx_hash_ptr)
   {
     // should only need to compute hash for miner transactions
@@ -136,13 +135,7 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
   {
     tx_hash = *tx_hash_ptr;
   }
-  if (tx.version >= 2)
-  {
-    if (!tx_prunable_hash_ptr)
-      tx_prunable_hash = get_transaction_prunable_hash(tx);
-    else
-      tx_prunable_hash = *tx_prunable_hash_ptr;
-  
+
   for (const txin_v& tx_input : tx.vin)
   {
     if (tx_input.type() == typeid(txin_to_key))
@@ -168,7 +161,7 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
     }
   }
 
-  uint64_t tx_id = add_transaction_data(blk_hash, tx, tx_hash, tx_prunable_hash);
+  uint64_t tx_id = add_transaction_data(blk_hash, tx, tx_hash);
 
   std::vector<uint64_t> amount_output_indices;
 
@@ -178,7 +171,7 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
   {
     // miner v2 txes have their coinbase output in one single out to save space,
     // and we store them as rct outputs with an identity mask
-    if (miner_tx)
+    if (miner_tx && tx.version == 2)
     {
       cryptonote::tx_out vout = tx.vout[i];
       rct::key commitment = rct::zeroCommit(vout.amount);
@@ -188,7 +181,8 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
     }
     else
     {
-      amount_output_indices.push_back(add_output(tx_hash, tx.vout[i], i, tx.unlock_time, &tx.rct_signatures.outPk[i].mask));
+      amount_output_indices.push_back(add_output(tx_hash, tx.vout[i], i, tx.unlock_time,
+        tx.version > 1 ? &tx.rct_signatures.outPk[i].mask : NULL));
     }
   }
   add_tx_amount_output_indices(tx_id, amount_output_indices);
@@ -364,6 +358,7 @@ void BlockchainDB::fixup()
 
   set_batch_transactions(true);
   batch_start();
+
   batch_stop();
 }
 
