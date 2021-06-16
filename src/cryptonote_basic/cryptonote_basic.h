@@ -214,7 +214,7 @@ namespace cryptonote
 
       FIELDS(*static_cast<transaction_prefix *>(this))
 
-      if (version == 1)
+      if (version > 1)
       {
         ar.tag("signatures");
         ar.begin_array();
@@ -272,7 +272,7 @@ namespace cryptonote
     {
       FIELDS(*static_cast<transaction_prefix *>(this))
 
-      if (version == 1)
+      if (version > 1)
       {
       }
       else

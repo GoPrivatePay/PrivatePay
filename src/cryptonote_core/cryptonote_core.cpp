@@ -805,7 +805,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version == 1)
+    if (tx.version >= 1)
     {
       uint64_t amount_in = 0;
       get_inputs_money_amount(tx, amount_in);
@@ -844,7 +844,7 @@ namespace cryptonote
       return false;
     }
 
-    if (tx.version >= 2)
+    if (tx.version >= 1)
     {
       const rct::rctSig &rv = tx.rct_signatures;
       switch (rv.type) {
@@ -952,7 +952,7 @@ namespace cryptonote
   bool core::check_tx_inputs_ring_members_diff(const transaction& tx) const
   {
     const uint8_t version = m_blockchain_storage.get_current_hard_fork_version();
-    if (version >= 6)
+    if (version >= 1)
     {
       for(const auto& in: tx.vin)
       {

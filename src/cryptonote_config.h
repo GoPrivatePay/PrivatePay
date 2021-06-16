@@ -172,7 +172,6 @@ namespace config
       0x1a ,0xb2, 0xc1, 0x71 , 0x62, 0x04 , 0x41, 0xcc, 0xa1, 0xc1, 0x01, 0x12, 0xc1, 0xA1, 0xA1, 0x12
     } }; // Bender's nightmare
   std::string const GENESIS_TX = "013c01ff0001ffffffffffff07020bf6522f9152fa26cd1fc5c022b1a9e13dab697f3acf4b4d0ca6950a867a194321011d92826d0656958865a035264725799f39f6988faa97d532f972895de849496d00";
-
   uint32_t const GENESIS_NONCE = 10000;
 
   namespace testnet
