@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
@@ -140,7 +139,39 @@ namespace cryptonote
     }
 
     // fee per kilobyte, size rounded up.
-    uint64_t fee = tx.rct_signatures.txnFee;
+    uint64_t fee;
+
+    if (tx.version == 1)
+    {
+      uint64_t inputs_amount = 0;
+      if(!get_inputs_money_amount(tx, inputs_amount))
+      {
+        tvc.m_verifivation_failed = true;
+        return false;
+      }
+
+      uint64_t outputs_amount = get_outs_money_amount(tx);
+      if(outputs_amount > inputs_amount)
+      {
+        LOG_PRINT_L1("transaction use more money than it has: use " << print_money(outputs_amount) << ", have " << print_money(inputs_amount));
+        tvc.m_verifivation_failed = true;
+        tvc.m_overspend = true;
+        return false;
+      }
+      else if(outputs_amount == inputs_amount)
+      {
+        LOG_PRINT_L1("transaction fee is zero: outputs_amount == inputs_amount, rejecting.");
+        tvc.m_verifivation_failed = true;
+        tvc.m_fee_too_low = true;
+        return false;
+      }
+
+      fee = inputs_amount - outputs_amount;
+    }
+    else
+    {
+      fee = tx.rct_signatures.txnFee;
+    }
 
     if (!kept_by_block && !m_blockchain.check_fee(blob_size, fee))
     {
@@ -208,6 +239,7 @@ namespace cryptonote
         meta.relayed = relayed;
         meta.do_not_relay = do_not_relay;
         meta.double_spend_seen = have_tx_keyimges_as_spent(tx);
+        meta.bf_padding = 0;
         memset(meta.padding, 0, sizeof(meta.padding));
         try
         {
@@ -247,6 +279,7 @@ namespace cryptonote
       meta.relayed = relayed;
       meta.do_not_relay = do_not_relay;
       meta.double_spend_seen = false;
+      meta.bf_padding = 0;
       memset(meta.padding, 0, sizeof(meta.padding));
 
       try
@@ -1052,7 +1085,9 @@ namespace cryptonote
     get_block_reward(median_size, total_size, already_generated_coins, best_coinbase, version);
 
 
-    size_t max_total_size = 2 * median_size - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+    size_t max_total_size_pre_v5 = (130 * median_size) / 100 - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+    size_t max_total_size_v5 = 2 * median_size - CRYPTONOTE_COINBASE_BLOB_RESERVED_SIZE;
+    size_t max_total_size = version >= 5 ? max_total_size_v5 : max_total_size_pre_v5;
     std::unordered_set<crypto::key_image> k_images;
 
     LOG_PRINT_L2("Filling block template, median size " << median_size << ", " << m_txs_by_fee_and_receive_time.size() << " txes in the pool");
@@ -1079,7 +1114,7 @@ namespace cryptonote
       }
 
       // start using the optimal filling algorithm from v5
-      if (version >= 1)
+      if (version >= 5)
       {
         // If we're getting lower coinbase tx,
         // stop including more tx
@@ -1096,6 +1131,16 @@ namespace cryptonote
           LOG_PRINT_L2("  would decrease coinbase to " << print_money(coinbase));
           sorted_it++;
           continue;
+        }
+      }
+      else
+      {
+        // If we've exceeded the penalty free size,
+        // stop including more tx
+        if (total_size > median_size)
+        {
+          LOG_PRINT_L2("  would exceed median block size");
+          break;
         }
       }
 
@@ -1225,24 +1270,33 @@ namespace cryptonote
     m_spent_key_images.clear();
     m_txpool_size = 0;
     std::vector<crypto::hash> remove;
-    bool r = m_blockchain.for_all_txpool_txes([this, &remove](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd) {
-      cryptonote::transaction tx;
-      if (!parse_and_validate_tx_from_blob(*bd, tx))
-      {
-        MWARNING("Failed to parse tx from txpool, removing");
-        remove.push_back(txid);
-      }
-      if (!insert_key_images(tx, meta.kept_by_block))
-      {
-        MFATAL("Failed to insert key images from txpool tx");
+
+    // first add the not kept by block, then the kept by block,
+    // to avoid rejection due to key image collision
+    for (int pass = 0; pass < 2; ++pass)
+    {
+      const bool kept = pass == 1;
+      bool r = m_blockchain.for_all_txpool_txes([this, &remove, kept](const crypto::hash &txid, const txpool_tx_meta_t &meta, const cryptonote::blobdata *bd) {
+        if (!!kept != !!meta.kept_by_block)
+          return true;
+        cryptonote::transaction tx;
+        if (!parse_and_validate_tx_from_blob(*bd, tx))
+        {
+          MWARNING("Failed to parse tx from txpool, removing");
+          remove.push_back(txid);
+        }
+        if (!insert_key_images(tx, meta.kept_by_block))
+        {
+          MFATAL("Failed to insert key images from txpool tx");
+          return false;
+        }
+        m_txs_by_fee_and_receive_time.emplace(std::pair<double, time_t>(meta.fee / (double)meta.blob_size, meta.receive_time), txid);
+        m_txpool_size += meta.blob_size;
+        return true;
+      }, true);
+      if (!r)
         return false;
-      }
-      m_txs_by_fee_and_receive_time.emplace(std::pair<double, time_t>(meta.fee / (double)meta.blob_size, meta.receive_time), txid);
-      m_txpool_size += meta.blob_size;
-      return true;
-    }, true);
-    if (!r)
-      return false;
+    }
     if (!remove.empty())
     {
       LockedTXN lock(m_blockchain);

@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -91,6 +90,7 @@ struct PendingTransaction
     // commit transaction or save to file if filename is provided.
     virtual bool commit(const std::string &filename = "", bool overwrite = false) = 0;
     virtual uint64_t amount() const = 0;
+    virtual uint64_t dust() const = 0;
     virtual uint64_t fee() const = 0;
     virtual std::vector<std::string> txid() const = 0;
     /*!
@@ -434,7 +434,7 @@ struct Wallet
      * \param upper_transaction_size_limit
      * \param daemon_username
      * \param daemon_password
-     * \param lightWallet - start wallet in light mode, connect to a openmonero compatible server.
+     * \param lightWallet - start wallet in light mode, connect to a openprivatepay compatible server.
      * \return  - true on success
      */
     virtual bool init(const std::string &daemon_address, uint64_t upper_transaction_size_limit = 0, const std::string &daemon_username = "", const std::string &daemon_password = "", bool use_ssl = false, bool lightWallet = false) = 0;
@@ -467,6 +467,21 @@ struct Wallet
     * \param recoveringFromSeed - true/false
     */
     virtual void setRecoveringFromSeed(bool recoveringFromSeed) = 0;
+
+   /*!
+    * \brief setRecoveringFromDevice - set state to recovering from device
+    *
+    * \param recoveringFromDevice - true/false
+    */
+    virtual void setRecoveringFromDevice(bool recoveringFromDevice) = 0;
+
+    /*!
+     * \brief setSubaddressLookahead - set size of subaddress lookahead
+     *
+     * \param major - size fot the major index
+     * \param minor - size fot the minor index
+     */
+    virtual void setSubaddressLookahead(uint32_t major, uint32_t minor) = 0;
 
     /**
      * @brief connectToDaemon - connects to the daemon. TODO: check if it can be removed
@@ -556,7 +571,8 @@ struct Wallet
     }
     static uint64_t maximumAllowedAmount();
     // Easylogger wrapper
-    static void init(const char *argv0, const char *default_log_base_name);
+    static void init(const char *argv0, const char *default_log_base_name) { init(argv0, default_log_base_name, "", true); }
+    static void init(const char *argv0, const char *default_log_base_name, const std::string &log_path, bool console);
     static void debug(const std::string &category, const std::string &str);
     static void info(const std::string &category, const std::string &str);
     static void warning(const std::string &category, const std::string &str);
@@ -647,6 +663,13 @@ struct Wallet
                                                    uint32_t subaddr_account = 0,
                                                    std::set<uint32_t> subaddr_indices = {}) = 0;
 
+    /*!
+     * \brief createSweepUnmixableTransaction creates transaction with unmixable outputs.
+     * \return                  PendingTransaction object. caller is responsible to check PendingTransaction::status()
+     *                          after object returned
+     */
+
+    virtual PendingTransaction * createSweepUnmixableTransaction() = 0;
     
    /*!
     * \brief loadUnsignedTx  - creates transaction from unsigned tx file
@@ -909,6 +932,23 @@ struct WalletManager
     }
 
     /*!
+     * \brief  creates wallet using hardware device.
+     * \param  path                 Name of wallet file to be created
+     * \param  password             Password of wallet file
+     * \param  nettype              Network type
+     * \param  deviceName           Device name
+     * \param  restoreHeight        restore from start height (0 sets to current height)
+     * \param  subaddressLookahead  Size of subaddress lookahead (empty sets to some default low value)
+     * \return                      Wallet instance (Wallet::status() needs to be called to check if recovered successfully)
+     */
+    virtual Wallet * createWalletFromDevice(const std::string &path,
+                                            const std::string &password,
+                                            NetworkType nettype,
+                                            const std::string &deviceName,
+                                            uint64_t restoreHeight = 0,
+                                            const std::string &subaddressLookahead = "") = 0;
+
+    /*!
      * \brief Closes wallet. In case operation succeeded, wallet object deleted. in case operation failed, wallet object not deleted
      * \param wallet        previously opened / created wallet instance
      * \return              None
@@ -949,25 +989,25 @@ struct WalletManager
     virtual void setDaemonAddress(const std::string &address) = 0;
 
     //! returns whether the daemon can be reached, and its version number
-    virtual bool connected(uint32_t *version = NULL) const = 0;
+    virtual bool connected(uint32_t *version = NULL) = 0;
 
     //! returns current blockchain height
-    virtual uint64_t blockchainHeight() const = 0;
+    virtual uint64_t blockchainHeight() = 0;
 
     //! returns current blockchain target height
-    virtual uint64_t blockchainTargetHeight() const = 0;
+    virtual uint64_t blockchainTargetHeight() = 0;
 
     //! returns current network difficulty
-    virtual uint64_t networkDifficulty() const = 0;
+    virtual uint64_t networkDifficulty() = 0;
 
     //! returns current mining hash rate (0 if not mining)
-    virtual double miningHashRate() const = 0;
+    virtual double miningHashRate() = 0;
 
     //! returns current block target
-    virtual uint64_t blockTarget() const = 0;
+    virtual uint64_t blockTarget() = 0;
 
     //! returns true iff mining
-    virtual bool isMining() const = 0;
+    virtual bool isMining() = 0;
 
     //! starts mining with the set number of threads
     virtual bool startMining(const std::string &address, uint32_t threads = 1, bool background_mining = false, bool ignore_battery = true) = 0;
@@ -975,7 +1015,7 @@ struct WalletManager
     //! stops mining
     virtual bool stopMining() = 0;
 
-    //! resolves an OpenAlias address to a monero address
+    //! resolves an OpenAlias address to a privatepay address
     virtual std::string resolveOpenAlias(const std::string &address, bool &dnssec_valid) const = 0;
 
     //! checks for an update and returns version, hash and url

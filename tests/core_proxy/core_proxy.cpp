@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -235,7 +234,7 @@ void tests::proxy_core::get_blockchain_top(uint64_t& height, crypto::hash& top_i
 }
 
 bool tests::proxy_core::init(const boost::program_options::variables_map& /*vm*/) {
-    generate_genesis_block(m_genesis);
+    generate_genesis_block(m_genesis, config::GENESIS_TX, config::GENESIS_NONCE);
     crypto::hash h = get_block_hash(m_genesis);
     add_block(h, get_block_longhash(m_genesis, 0), m_genesis, block_to_blob(m_genesis));
     return true;

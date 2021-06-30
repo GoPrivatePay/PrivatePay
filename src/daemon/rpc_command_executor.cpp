@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -721,6 +720,7 @@ bool t_rpc_command_executor::print_transaction(crypto::hash transaction_hash,
 
   req.txs_hashes.push_back(epee::string_tools::pod_to_hex(transaction_hash));
   req.decode_as_json = false;
+  req.prune = false;
   if (m_is_rpc)
   {
     if (!m_rpc_client->rpc_request(req, res, "/gettransactions", fail_message.c_str()))
@@ -973,7 +973,7 @@ bool t_rpc_command_executor::print_transaction_pool_stats() {
   }
   else
   {
-    memset(&res.pool_stats, 0, sizeof(res.pool_stats));
+    res.pool_stats = {};
     if (!m_rpc_server->on_get_transaction_pool_stats(req, res, false) || res.status != CORE_RPC_STATUS_OK)
     {
       tools::fail_msg_writer() << make_error(fail_message, res.status);
@@ -1037,10 +1037,10 @@ bool t_rpc_command_executor::print_transaction_pool_stats() {
   return true;
 }
 
-bool t_rpc_command_executor::start_mining(std::string address, uint64_t num_threads, cryptonote::network_type nettype, bool do_background_mining, bool ignore_battery) {
+bool t_rpc_command_executor::start_mining(cryptonote::account_public_address address, uint64_t num_threads, cryptonote::network_type nettype, bool do_background_mining, bool ignore_battery) {
   cryptonote::COMMAND_RPC_START_MINING::request req;
   cryptonote::COMMAND_RPC_START_MINING::response res;
-  req.miner_address = address;
+  req.miner_address = cryptonote::get_account_address_as_str(nettype, false, address);
   req.threads_count = num_threads;
   req.do_background_mining = do_background_mining;
   req.ignore_battery = ignore_battery;
@@ -1100,8 +1100,8 @@ bool t_rpc_command_executor::stop_daemon()
 //# ifdef WIN32
 //    // Stop via service API
 //    // TODO - this is only temporary!  Get rid of hard-coded constants!
-//    bool ok = windows::stop_service("Masari Daemon");
-//    ok = windows::uninstall_service("Masari Daemon");
+//    bool ok = windows::stop_service("PrivatePay Daemon");
+//    ok = windows::uninstall_service("PrivatePay Daemon");
 //    //bool ok = windows::stop_service(SERVICE_NAME);
 //    //ok = windows::uninstall_service(SERVICE_NAME);
 //    if (ok)
@@ -1145,10 +1145,10 @@ bool t_rpc_command_executor::print_status()
   bool daemon_is_alive = m_rpc_client->check_connection();
 
   if(daemon_is_alive) {
-    tools::success_msg_writer() << "monerod is running";
+    tools::success_msg_writer() << "privatepayd is running";
   }
   else {
-    tools::fail_msg_writer() << "monerod is NOT running";
+    tools::fail_msg_writer() << "privatepayd is NOT running";
   }
 
   return true;
@@ -1177,8 +1177,8 @@ bool t_rpc_command_executor::get_limit()
     }
   }
 
-  tools::msg_writer() << "limit-down is " << res.limit_down/1024 << " kB/s";
-  tools::msg_writer() << "limit-up is " << res.limit_up/1024 << " kB/s";
+  tools::msg_writer() << "limit-down is " << res.limit_down << " kB/s";
+  tools::msg_writer() << "limit-up is " << res.limit_up << " kB/s";
   return true;
 }
 
@@ -1208,8 +1208,8 @@ bool t_rpc_command_executor::set_limit(int64_t limit_down, int64_t limit_up)
     }
   }
 
-  tools::msg_writer() << "Set limit-down to " << res.limit_down/1024 << " kB/s";
-  tools::msg_writer() << "Set limit-up to " << res.limit_up/1024 << " kB/s";
+  tools::msg_writer() << "Set limit-down to " << res.limit_down << " kB/s";
+  tools::msg_writer() << "Set limit-up to " << res.limit_up << " kB/s";
   return true;
 }
 
@@ -1236,7 +1236,7 @@ bool t_rpc_command_executor::get_limit_up()
     }
   }
 
-  tools::msg_writer() << "limit-up is " << res.limit_up/1024 << " kB/s";
+  tools::msg_writer() << "limit-up is " << res.limit_up << " kB/s";
   return true;
 }
 
@@ -1263,7 +1263,7 @@ bool t_rpc_command_executor::get_limit_down()
     }
   }
 
-  tools::msg_writer() << "limit-down is " << res.limit_down/1024 << " kB/s";
+  tools::msg_writer() << "limit-down is " << res.limit_down << " kB/s";
   return true;
 }
 

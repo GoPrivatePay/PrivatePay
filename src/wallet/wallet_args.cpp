@@ -1,5 +1,3 @@
-// Copyright (c) 2018 Private Pay
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
@@ -180,6 +178,10 @@ namespace wallet_args
     if (!command_line::is_arg_defaulted(vm, arg_log_level))
     {
       mlog_set_log(command_line::get_arg(vm, arg_log_level).c_str());
+    }
+    else if (!log_to_console)
+    {
+      mlog_set_categories("");
     }
 
     if (notice)

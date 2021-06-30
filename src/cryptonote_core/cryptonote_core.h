@@ -202,7 +202,7 @@ namespace cryptonote
       *
       * @note see Blockchain::create_block_template
       */
-     virtual bool get_block_template(block& b, std::string adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce);
+     virtual bool get_block_template(block& b, const account_public_address& adr, difficulty_type& diffic, uint64_t& height, uint64_t& expected_reward, const blobdata& ex_nonce);
 
      /**
       * @brief called when a transaction is relayed
@@ -576,7 +576,7 @@ namespace cryptonote
       *
       * @brief get per block distribution of outputs of a given amount
       */
-     bool get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) const;
+     bool get_output_distribution(uint64_t amount, uint64_t from_height, uint64_t to_height, uint64_t &start_height, std::vector<uint64_t> &distribution, uint64_t &base) const;
 
      /**
       * @copydoc miner::pause

@@ -1,5 +1,3 @@
-// Copyright (c) 2018 Private Pay
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -364,6 +362,7 @@ namespace tools
     if (!m_wallet) return not_open(er);
     try
     {
+      THROW_WALLET_EXCEPTION_IF(req.account_index >= m_wallet->get_num_subaddress_accounts(), error::account_index_outofbound);
       res.addresses.clear();
       std::vector<uint32_t> req_address_index;
       if (req.address_index.empty())
@@ -379,6 +378,7 @@ namespace tools
       m_wallet->get_transfers(transfers);
       for (uint32_t i : req_address_index)
       {
+        THROW_WALLET_EXCEPTION_IF(i >= m_wallet->get_num_subaddresses(req.account_index), error::address_index_outofbound);
         res.addresses.resize(res.addresses.size() + 1);
         auto& info = res.addresses.back();
         const cryptonote::subaddress_index index = {req.account_index, i};
@@ -502,6 +502,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_get_account_tags(const wallet_rpc::COMMAND_RPC_GET_ACCOUNT_TAGS::request& req, wallet_rpc::COMMAND_RPC_GET_ACCOUNT_TAGS::response& res, epee::json_rpc::error& er)
   {
+    if (!m_wallet) return not_open(er);
     const std::pair<std::map<std::string, std::string>, std::vector<std::string>> account_tags = m_wallet->get_account_tags();
     for (const std::pair<std::string, std::string>& p : account_tags.first)
     {
@@ -520,6 +521,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_tag_accounts(const wallet_rpc::COMMAND_RPC_TAG_ACCOUNTS::request& req, wallet_rpc::COMMAND_RPC_TAG_ACCOUNTS::response& res, epee::json_rpc::error& er)
   {
+    if (!m_wallet) return not_open(er);
     try
     {
       m_wallet->set_account_tag(req.accounts, req.tag);
@@ -534,6 +536,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_untag_accounts(const wallet_rpc::COMMAND_RPC_UNTAG_ACCOUNTS::request& req, wallet_rpc::COMMAND_RPC_UNTAG_ACCOUNTS::response& res, epee::json_rpc::error& er)
   {
+    if (!m_wallet) return not_open(er);
     try
     {
       m_wallet->set_account_tag(req.accounts, "");
@@ -548,6 +551,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_set_account_tag_description(const wallet_rpc::COMMAND_RPC_SET_ACCOUNT_TAG_DESCRIPTION::request& req, wallet_rpc::COMMAND_RPC_SET_ACCOUNT_TAG_DESCRIPTION::response& res, epee::json_rpc::error& er)
   {
+    if (!m_wallet) return not_open(er);
     try
     {
       m_wallet->set_account_tag_description(req.tag, req.description);
@@ -859,6 +863,31 @@ namespace tools
       LOG_PRINT_L2("on_transfer_split calling create_transactions_2");
       std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_transactions_2(dsts, mixin, req.unlock_time, priority, extra, req.account_index, req.subaddr_indices, m_trusted_daemon);
       LOG_PRINT_L2("on_transfer_split called create_transactions_2");
+
+      return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, req.do_not_relay,
+          res.tx_hash_list, req.get_tx_hex, res.tx_blob_list, req.get_tx_metadata, res.tx_metadata_list, er);
+    }
+    catch (const std::exception& e)
+    {
+      handle_rpc_exception(std::current_exception(), er, WALLET_RPC_ERROR_CODE_GENERIC_TRANSFER_ERROR);
+      return false;
+    }
+    return true;
+  }
+  //------------------------------------------------------------------------------------------------------------------------------
+  bool wallet_rpc_server::on_sweep_dust(const wallet_rpc::COMMAND_RPC_SWEEP_DUST::request& req, wallet_rpc::COMMAND_RPC_SWEEP_DUST::response& res, epee::json_rpc::error& er)
+  {
+    if (!m_wallet) return not_open(er);
+    if (m_wallet->restricted())
+    {
+      er.code = WALLET_RPC_ERROR_CODE_DENIED;
+      er.message = "Command unavailable in restricted mode.";
+      return false;
+    }
+
+    try
+    {
+      std::vector<wallet2::pending_tx> ptx_vector = m_wallet->create_unmixable_sweep_transactions(m_trusted_daemon);
 
       return fill_response(ptx_vector, req.get_tx_keys, res.tx_key_list, res.amount_list, res.fee_list, res.multisig_txset, req.do_not_relay,
           res.tx_hash_list, req.get_tx_hex, res.tx_blob_list, req.get_tx_metadata, res.tx_metadata_list, er);
@@ -2031,6 +2060,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_make_uri(const wallet_rpc::COMMAND_RPC_MAKE_URI::request& req, wallet_rpc::COMMAND_RPC_MAKE_URI::response& res, epee::json_rpc::error& er)
   {
+    if (!m_wallet) return not_open(er);
     std::string error;
     std::string uri = m_wallet->make_uri(req.address, req.payment_id, req.amount, req.tx_description, req.recipient_name, error);
     if (uri.empty())
@@ -2244,6 +2274,7 @@ namespace tools
   //------------------------------------------------------------------------------------------------------------------------------
   bool wallet_rpc_server::on_stop_mining(const wallet_rpc::COMMAND_RPC_STOP_MINING::request& req, wallet_rpc::COMMAND_RPC_STOP_MINING::response& res, epee::json_rpc::error& er)
   {
+    if (!m_wallet) return not_open(er);
     cryptonote::COMMAND_RPC_STOP_MINING::request daemon_req;
     cryptonote::COMMAND_RPC_STOP_MINING::response daemon_res;
     bool r = m_wallet->invoke_http_json("/stop_mining", daemon_req, daemon_res);
@@ -2875,7 +2906,7 @@ int main(int argc, char** argv) {
   const auto vm = wallet_args::main(
     argc, argv,
     "privatepay-wallet-rpc [--wallet-file=<file>|--generate-from-json=<file>|--wallet-dir=<directory>] [--rpc-bind-port=<port>]",
-    tools::wallet_rpc_server::tr("This is the RPC privatepay wallet. It needs to connect to a privatepay daemon to work correctly."),
+    tools::wallet_rpc_server::tr("This is the RPC privatepay wallet. It needs to connect to a privatepay\ndaemon to work correctly."),
     desc_params,
     po::positional_options_description(),
     [](const std::string &s, bool emphasis){ epee::set_console_color(emphasis ? epee::console_color_white : epee::console_color_default, true); std::cout << s << std::endl; if (emphasis) epee::reset_console_color(); },

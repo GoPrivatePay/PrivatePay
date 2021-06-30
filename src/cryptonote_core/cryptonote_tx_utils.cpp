@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -30,6 +29,7 @@
 // Parts of this file are originally copyright (c) 2012-2013 The Cryptonote developers
 
 #include <unordered_set>
+#include <random>
 #include "include_base_utils.h"
 #include "string_tools.h"
 using namespace epee;
@@ -74,30 +74,12 @@ namespace cryptonote
     LOG_PRINT_L2("destinations include " << num_stdaddresses << " standard addresses and " << num_subaddresses << " subaddresses");
   }
   //---------------------------------------------------------------
-  bool construct_miner_tx(size_t height, size_t median_size, uint64_t already_generated_coins, size_t current_block_size, uint64_t fee, std::string miner_address_str, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version) {
+  bool construct_miner_tx(size_t height, size_t median_size, uint64_t already_generated_coins, size_t current_block_size, uint64_t fee, const account_public_address &miner_address, transaction& tx, const blobdata& extra_nonce, size_t max_outs, uint8_t hard_fork_version) {
     tx.vin.clear();
     tx.vout.clear();
     tx.extra.clear();
 
-    hw::device &hwdev = hw::get_device("default");
-    keypair txkey = keypair::generate(hwdev);
-    
-    cryptonote::address_parse_info info;
-    
-    if(!get_account_address_from_str(info, cryptonote::MAINNET, miner_address_str))
-    {
-      if(!get_account_address_from_str(info, cryptonote::TESTNET, miner_address_str))
-      {
-        get_account_address_from_str(info, cryptonote::STAGENET, miner_address_str);
-      }
-    }
-	
-    cryptonote::account_public_address miner_address = info.address;
-    
-    if(info.is_subaddress)
-    {
-      txkey.pub = rct::rct2pk(hwdev.scalarmultKey(rct::pk2rct(miner_address.m_spend_public_key), rct::sk2rct(txkey.sec)));
-    }
+    keypair txkey = keypair::generate(hw::get_device("default"));
     add_tx_pub_key_to_extra(tx, txkey.pub);
     if(!extra_nonce.empty())
       if(!add_extra_nonce_to_tx_extra(tx.extra, extra_nonce))
@@ -119,23 +101,66 @@ namespace cryptonote
 #endif
     block_reward += fee;
 
-    crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);;
-    crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
-    bool r = crypto::generate_key_derivation(miner_address.m_view_public_key, txkey.sec, derivation);
-    CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << miner_address.m_view_public_key << ", " << txkey.sec << ")");
+    // from hard fork 2, we cut out the low significant digits. This makes the tx smaller, and
+    // keeps the paid amount almost the same. The unpaid remainder gets pushed back to the
+    // emission schedule
+    // from hard fork 4, we use a single "dusty" output. This makes the tx even smaller,
+    // and avoids the quantization. These outputs will be added as rct outputs with identity
+    // masks, to they can be used as rct inputs.
+    if (hard_fork_version >= 2 && hard_fork_version < 4) {
+      block_reward = block_reward - block_reward % ::config::BASE_REWARD_CLAMP_THRESHOLD;
+    }
 
-    r = crypto::derive_public_key(derivation, 0, miner_address.m_spend_public_key, out_eph_public_key);
-    CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << miner_address.m_spend_public_key << ")");
+    std::vector<uint64_t> out_amounts;
+    decompose_amount_into_digits(block_reward, hard_fork_version >= 2 ? 0 : ::config::DEFAULT_DUST_THRESHOLD,
+      [&out_amounts](uint64_t a_chunk) { out_amounts.push_back(a_chunk); },
+      [&out_amounts](uint64_t a_dust) { out_amounts.push_back(a_dust); });
 
-    txout_to_key tk;
-    tk.key = out_eph_public_key;
+    CHECK_AND_ASSERT_MES(1 <= max_outs, false, "max_out must be non-zero");
+    if (height == 0 || hard_fork_version >= 4)
+    {
+      // the genesis block was not decomposed, for unknown reasons
+      while (max_outs < out_amounts.size())
+      {
+        //out_amounts[out_amounts.size() - 2] += out_amounts.back();
+        //out_amounts.resize(out_amounts.size() - 1);
+        out_amounts[1] += out_amounts[0];
+        for (size_t n = 1; n < out_amounts.size(); ++n)
+          out_amounts[n - 1] = out_amounts[n];
+        out_amounts.resize(out_amounts.size() - 1);
+      }
+    }
+    else
+    {
+      CHECK_AND_ASSERT_MES(max_outs >= out_amounts.size(), false, "max_out exceeded");
+    }
 
-    tx_out out;
-    out.amount = block_reward;
-    out.target = tk;
-    tx.vout.push_back(out);
+    uint64_t summary_amounts = 0;
+    for (size_t no = 0; no < out_amounts.size(); no++)
+    {
+      crypto::key_derivation derivation = AUTO_VAL_INIT(derivation);;
+      crypto::public_key out_eph_public_key = AUTO_VAL_INIT(out_eph_public_key);
+      bool r = crypto::generate_key_derivation(miner_address.m_view_public_key, txkey.sec, derivation);
+      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to generate_key_derivation(" << miner_address.m_view_public_key << ", " << txkey.sec << ")");
 
-    tx.version = CURRENT_TRANSACTION_VERSION;
+      r = crypto::derive_public_key(derivation, no, miner_address.m_spend_public_key, out_eph_public_key);
+      CHECK_AND_ASSERT_MES(r, false, "while creating outs: failed to derive_public_key(" << derivation << ", " << no << ", "<< miner_address.m_spend_public_key << ")");
+
+      txout_to_key tk;
+      tk.key = out_eph_public_key;
+
+      tx_out out;
+      summary_amounts += out.amount = out_amounts[no];
+      out.target = tk;
+      tx.vout.push_back(out);
+    }
+
+    CHECK_AND_ASSERT_MES(summary_amounts == block_reward, false, "Failed to construct miner tx, summary_amounts = " << summary_amounts << " not equal block_reward = " << block_reward);
+
+    if (hard_fork_version >= 8)
+      tx.version = 2;
+    else
+      tx.version = 1;
 
     //lock
     tx.unlock_time = height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW;
@@ -170,7 +195,7 @@ namespace cryptonote
     return addr.m_view_public_key;
   }
   //---------------------------------------------------------------
-  bool construct_tx_with_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, const std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, const crypto::secret_key &tx_key, const std::vector<crypto::secret_key> &additional_tx_keys, bool rct, bool bulletproof, rct::multisig_out *msout)
+  bool construct_tx_with_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, const crypto::secret_key &tx_key, const std::vector<crypto::secret_key> &additional_tx_keys, bool rct, bool bulletproof, rct::multisig_out *msout, bool shuffle_outs)
   {
     hw::device &hwdev = sender_account_keys.get_device();
 
@@ -188,7 +213,7 @@ namespace cryptonote
       msout->c.clear();
     }
 
-    tx.version = CURRENT_TRANSACTION_VERSION;
+    tx.version = rct ? 2 : 1;
     tx.unlock_time = unlock_time;
 
     tx.extra = extra;
@@ -290,9 +315,10 @@ namespace cryptonote
       tx.vin.push_back(input_to_key);
     }
 
-    // "Shuffle" outs
-    std::vector<tx_destination_entry> shuffled_dsts(destinations);
-    std::random_shuffle(shuffled_dsts.begin(), shuffled_dsts.end(), [](unsigned int i) { return crypto::rand<unsigned int>() % i; });
+    if (shuffle_outs)
+    {
+      std::shuffle(destinations.begin(), destinations.end(), std::default_random_engine(crypto::rand<unsigned int>()));
+    }
 
     // sort ins by their key image
     std::vector<size_t> ins_order(sources.size());
@@ -341,6 +367,7 @@ namespace cryptonote
     size_t output_index = 0;
     for(const tx_destination_entry& dst_entr: destinations)
     {
+      CHECK_AND_ASSERT_MES(dst_entr.amount > 0 || tx.version > 1, false, "Destination with wrong amount: " << dst_entr.amount);
       crypto::key_derivation derivation;
       crypto::public_key out_eph_public_key;
 
@@ -374,7 +401,7 @@ namespace cryptonote
         additional_tx_public_keys.push_back(additional_txkey.pub);
       }
 
-      if (tx.version >= 1)
+      if (tx.version > 1)
       {
         crypto::secret_key scalar1;
         hwdev.derivation_to_scalar(derivation, output_index, scalar1);
@@ -423,7 +450,42 @@ namespace cryptonote
       MDEBUG("Null secret key, skipping signatures");
     }
 
-    if (tx.version >= 1)
+    if (tx.version == 1)
+    {
+      //generate ring signatures
+      crypto::hash tx_prefix_hash;
+      get_transaction_prefix_hash(tx, tx_prefix_hash);
+
+      std::stringstream ss_ring_s;
+      size_t i = 0;
+      for(const tx_source_entry& src_entr:  sources)
+      {
+        ss_ring_s << "pub_keys:" << ENDL;
+        std::vector<const crypto::public_key*> keys_ptrs;
+        std::vector<crypto::public_key> keys(src_entr.outputs.size());
+        size_t ii = 0;
+        for(const tx_source_entry::output_entry& o: src_entr.outputs)
+        {
+          keys[ii] = rct2pk(o.second.dest);
+          keys_ptrs.push_back(&keys[ii]);
+          ss_ring_s << o.second.dest << ENDL;
+          ++ii;
+        }
+
+        tx.signatures.push_back(std::vector<crypto::signature>());
+        std::vector<crypto::signature>& sigs = tx.signatures.back();
+        sigs.resize(src_entr.outputs.size());
+        if (!zero_secret_key)
+          crypto::generate_ring_signature(tx_prefix_hash, boost::get<txin_to_key>(tx.vin[i]).k_image, keys_ptrs, in_contexts[i].in_ephemeral.sec, src_entr.real_output, sigs.data());
+        ss_ring_s << "signatures:" << ENDL;
+        std::for_each(sigs.begin(), sigs.end(), [&](const crypto::signature& s){ss_ring_s << s << ENDL;});
+        ss_ring_s << "prefix_hash:" << tx_prefix_hash << ENDL << "in_ephemeral_key: " << in_contexts[i].in_ephemeral.sec << ENDL << "real_output: " << src_entr.real_output << ENDL;
+        i++;
+      }
+
+      MCINFO("construct_tx", "transaction_created: " << get_transaction_hash(tx) << ENDL << obj_to_json_str(tx) << ENDL << ss_ring_s.str());
+    }
+    else
     {
       size_t n_total_outs = sources[0].outputs.size(); // only for non-simple rct
 
@@ -539,7 +601,7 @@ namespace cryptonote
     return true;
   }
   //---------------------------------------------------------------
-  bool construct_tx_and_get_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, const std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys, bool rct, bool bulletproof, rct::multisig_out *msout)
+  bool construct_tx_and_get_tx_key(const account_keys& sender_account_keys, const std::unordered_map<crypto::public_key, subaddress_index>& subaddresses, std::vector<tx_source_entry>& sources, std::vector<tx_destination_entry>& destinations, const boost::optional<cryptonote::account_public_address>& change_addr, std::vector<uint8_t> extra, transaction& tx, uint64_t unlock_time, crypto::secret_key &tx_key, std::vector<crypto::secret_key> &additional_tx_keys, bool rct, bool bulletproof, rct::multisig_out *msout)
   {
     hw::device &hwdev = sender_account_keys.get_device();
     hwdev.open_tx(tx_key);
@@ -568,7 +630,8 @@ namespace cryptonote
      subaddresses[sender_account_keys.m_account_address.m_spend_public_key] = {0,0};
      crypto::secret_key tx_key;
      std::vector<crypto::secret_key> additional_tx_keys;
-     return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations, change_addr, extra, tx, unlock_time, tx_key, additional_tx_keys, false, false, NULL);
+     std::vector<tx_destination_entry> destinations_copy = destinations;
+     return construct_tx_and_get_tx_key(sender_account_keys, subaddresses, sources, destinations_copy, change_addr, extra, tx, unlock_time, tx_key, additional_tx_keys, false, false, NULL);
   }
   //---------------------------------------------------------------
   bool generate_genesis_block(block& bl)

@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -167,7 +166,11 @@ namespace boost
     a & x.vin;
     a & x.vout;
     a & x.extra;
-    if (x.version >= 1)
+    if (x.version > 1)
+    {
+      a & x.signatures;
+    }
+    else
     {
       a & (rct::rctSigBase&)x.rct_signatures;
       if (x.rct_signatures.type != rct::RCTTypeNull)

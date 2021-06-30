@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -172,7 +171,7 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
   {
     // miner v2 txes have their coinbase output in one single out to save space,
     // and we store them as rct outputs with an identity mask
-    if (miner_tx)
+    if (miner_tx && tx.version == 2)
     {
       cryptonote::tx_out vout = tx.vout[i];
       rct::key commitment = rct::zeroCommit(vout.amount);
@@ -182,7 +181,8 @@ void BlockchainDB::add_transaction(const crypto::hash& blk_hash, const transacti
     }
     else
     {
-      amount_output_indices.push_back(add_output(tx_hash, tx.vout[i], i, tx.unlock_time, &tx.rct_signatures.outPk[i].mask));
+      amount_output_indices.push_back(add_output(tx_hash, tx.vout[i], i, tx.unlock_time,
+        tx.version > 1 ? &tx.rct_signatures.outPk[i].mask : NULL));
     }
   }
   add_tx_amount_output_indices(tx_id, amount_output_indices);
@@ -358,6 +358,7 @@ void BlockchainDB::fixup()
 
   set_batch_transactions(true);
   batch_start();
+
   batch_stop();
 }
 

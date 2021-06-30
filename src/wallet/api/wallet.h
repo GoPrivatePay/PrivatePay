@@ -1,4 +1,3 @@
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 //
 // All rights reserved.
@@ -77,6 +76,9 @@ public:
                             const std::string &address_string, 
                             const std::string &viewkey_string,
                             const std::string &spendkey_string = "");
+    bool recoverFromDevice(const std::string &path,
+                           const std::string &password,
+                           const std::string &device_name);
     bool close(bool store = true);
     std::string seed() const;
     std::string getSeedLanguage() const;
@@ -114,6 +116,8 @@ public:
     void setRefreshFromBlockHeight(uint64_t refresh_from_block_height);
     uint64_t getRefreshFromBlockHeight() const { return m_wallet->get_refresh_from_block_height(); };
     void setRecoveringFromSeed(bool recoveringFromSeed);
+    void setRecoveringFromDevice(bool recoveringFromDevice);
+    void setSubaddressLookahead(uint32_t major, uint32_t minor);
     bool watchOnly() const;
     bool rescanSpent();
     NetworkType nettype() const {return static_cast<NetworkType>(m_wallet->nettype());}
@@ -132,6 +136,7 @@ public:
                                         PendingTransaction::Priority priority = PendingTransaction::Priority_Low,
                                         uint32_t subaddr_account = 0,
                                         std::set<uint32_t> subaddr_indices = {});
+    virtual PendingTransaction * createSweepUnmixableTransaction();
     bool submitTransaction(const std::string &fileName);
     virtual UnsignedTransaction * loadUnsignedTx(const std::string &unsigned_filename);
     bool exportKeyImages(const std::string &filename);
@@ -216,6 +221,7 @@ private:
     // so it shouldn't be considered as new and pull blocks (slow-refresh)
     // instead of pulling hashes (fast-refresh)
     std::atomic<bool>   m_recoveringFromSeed;
+    std::atomic<bool>   m_recoveringFromDevice;
     std::atomic<bool>   m_synchronized;
     std::atomic<bool>   m_rebuildWalletCache;
     // cache connection status to avoid unnecessary RPC calls

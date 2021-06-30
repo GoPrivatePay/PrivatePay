@@ -1,5 +1,3 @@
-// Copyright (c) 2018 Private Pay
-// Copyright (c) 2017-2018, The Masari Project
 // Copyright (c) 2014-2018, The Monero Project
 // 
 // All rights reserved.
@@ -66,7 +64,7 @@ static const uint64_t valid_decomposed_outputs[] = {
   (uint64_t)1000000000, (uint64_t)2000000000, (uint64_t)3000000000, (uint64_t)4000000000, (uint64_t)5000000000, (uint64_t)6000000000, (uint64_t)7000000000, (uint64_t)8000000000, (uint64_t)9000000000,
   (uint64_t)10000000000, (uint64_t)20000000000, (uint64_t)30000000000, (uint64_t)40000000000, (uint64_t)50000000000, (uint64_t)60000000000, (uint64_t)70000000000, (uint64_t)80000000000, (uint64_t)90000000000,
   (uint64_t)100000000000, (uint64_t)200000000000, (uint64_t)300000000000, (uint64_t)400000000000, (uint64_t)500000000000, (uint64_t)600000000000, (uint64_t)700000000000, (uint64_t)800000000000, (uint64_t)900000000000,
-  (uint64_t)1000000000000, (uint64_t)2000000000000, (uint64_t)3000000000000, (uint64_t)4000000000000, (uint64_t)5000000000000, (uint64_t)6000000000000, (uint64_t)7000000000000, (uint64_t)8000000000000, (uint64_t)9000000000000, // 1 monero
+  (uint64_t)1000000000000, (uint64_t)2000000000000, (uint64_t)3000000000000, (uint64_t)4000000000000, (uint64_t)5000000000000, (uint64_t)6000000000000, (uint64_t)7000000000000, (uint64_t)8000000000000, (uint64_t)9000000000000, // 1 privatepay
   (uint64_t)10000000000000, (uint64_t)20000000000000, (uint64_t)30000000000000, (uint64_t)40000000000000, (uint64_t)50000000000000, (uint64_t)60000000000000, (uint64_t)70000000000000, (uint64_t)80000000000000, (uint64_t)90000000000000,
   (uint64_t)100000000000000, (uint64_t)200000000000000, (uint64_t)300000000000000, (uint64_t)400000000000000, (uint64_t)500000000000000, (uint64_t)600000000000000, (uint64_t)700000000000000, (uint64_t)800000000000000, (uint64_t)900000000000000,
   (uint64_t)1000000000000000, (uint64_t)2000000000000000, (uint64_t)3000000000000000, (uint64_t)4000000000000000, (uint64_t)5000000000000000, (uint64_t)6000000000000000, (uint64_t)7000000000000000, (uint64_t)8000000000000000, (uint64_t)9000000000000000,
@@ -126,6 +124,40 @@ namespace cryptonote
     return h;
   }
   //---------------------------------------------------------------
+  bool expand_transaction_1(transaction &tx, bool base_only)
+  {
+    if (tx.version >= 2 && !is_coinbase(tx))
+    {
+      rct::rctSig &rv = tx.rct_signatures;
+      if (rv.outPk.size() != tx.vout.size())
+      {
+        LOG_PRINT_L1("Failed to parse transaction from blob, bad outPk size in tx " << get_transaction_hash(tx));
+        return false;
+      }
+      for (size_t n = 0; n < tx.rct_signatures.outPk.size(); ++n)
+        rv.outPk[n].dest = rct::pk2rct(boost::get<txout_to_key>(tx.vout[n].target).key);
+
+      if (!base_only)
+      {
+        const bool bulletproof = rv.type == rct::RCTTypeFullBulletproof || rv.type == rct::RCTTypeSimpleBulletproof;
+        if (bulletproof)
+        {
+          if (rv.p.bulletproofs.size() != tx.vout.size())
+          {
+            LOG_PRINT_L1("Failed to parse transaction from blob, bad bulletproofs size in tx " << get_transaction_hash(tx));
+            return false;
+          }
+          for (size_t n = 0; n < rv.outPk.size(); ++n)
+          {
+            rv.p.bulletproofs[n].V.resize(1);
+            rv.p.bulletproofs[n].V[0] = rv.outPk[n].mask;
+          }
+        }
+      }
+    }
+    return true;
+  }
+  //---------------------------------------------------------------
   bool parse_and_validate_tx_from_blob(const blobdata& tx_blob, transaction& tx)
   {
     std::stringstream ss;
@@ -133,6 +165,7 @@ namespace cryptonote
     binary_archive<false> ba(ss);
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
+    CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
     tx.invalidate_hashes();
     return true;
   }
@@ -144,6 +177,7 @@ namespace cryptonote
     binary_archive<false> ba(ss);
     bool r = tx.serialize_base(ba);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
+    CHECK_AND_ASSERT_MES(expand_transaction_1(tx, true), false, "Failed to expand transaction data");
     return true;
   }
   //---------------------------------------------------------------
@@ -154,6 +188,7 @@ namespace cryptonote
     binary_archive<false> ba(ss);
     bool r = ::serialization::serialize(ba, tx);
     CHECK_AND_ASSERT_MES(r, false, "Failed to parse transaction from blob");
+    CHECK_AND_ASSERT_MES(expand_transaction_1(tx, false), false, "Failed to expand transaction data");
     tx.invalidate_hashes();
     //TODO: validate tx
 
@@ -285,7 +320,23 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool get_tx_fee(const transaction& tx, uint64_t & fee)
   {
-    fee = tx.rct_signatures.txnFee;
+    if (tx.version > 1)
+    {
+      fee = tx.rct_signatures.txnFee;
+      return true;
+    }
+    uint64_t amount_in = 0;
+    uint64_t amount_out = 0;
+    for(auto& in: tx.vin)
+    {
+      CHECK_AND_ASSERT_MES(in.type() == typeid(txin_to_key), 0, "unexpected type id in transaction");
+      amount_in += boost::get<txin_to_key>(in).amount;
+    }
+    for(auto& o: tx.vout)
+      amount_out += o.amount;
+
+    CHECK_AND_ASSERT_MES(amount_in >= amount_out, false, "transaction spend (" <<amount_in << ") more than it has (" << amount_out << ")");
+    fee = amount_in - amount_out;
     return true;
   }
   //---------------------------------------------------------------
@@ -520,6 +571,11 @@ namespace cryptonote
         << out.target.type().name() << ", expected " << typeid(txout_to_key).name()
         << ", in transaction id=" << get_transaction_hash(tx));
 
+      if (tx.version > 1)
+      {
+        CHECK_AND_NO_ASSERT_MES(0 < out.amount, false, "zero amount output in transaction id=" << get_transaction_hash(tx));
+      }
+
       if(!check_key(boost::get<txout_to_key>(out.target).key))
         return false;
     }
@@ -678,13 +734,13 @@ namespace cryptonote
       case 12:
         return "privatepay";
       case 9:
-        return "millipay";
+        return "millinero";
       case 6:
-        return "micropay";
+        return "micronero";
       case 3:
-        return "nanopay";
+        return "nanonero";
       case 0:
-        return "picopay";
+        return "piconero";
       default:
         ASSERT_MES_AND_THROW("Invalid decimal point specification: " << default_decimal_point);
     }
@@ -725,6 +781,13 @@ namespace cryptonote
   //---------------------------------------------------------------
   bool calculate_transaction_hash(const transaction& t, crypto::hash& res, size_t* blob_size)
   {
+    // v1 transactions hash the entire blob
+    if (t.version == 1)
+    {
+      size_t ignored_blob_size, &blob_size_ref = blob_size ? *blob_size : ignored_blob_size;
+      return get_object_hash(t, res, blob_size_ref);
+    }
+
     // v2 transactions hash different parts together, than hash the set of those hashes
     crypto::hash hashes[3];
 
